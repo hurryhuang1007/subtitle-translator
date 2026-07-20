@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
-import 'animal-island-ui/style';
+
+import { Provider } from '@/com/ui/provider';
+
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,8 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
-      <body>{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body>
+        <Provider>{children}</Provider>
+      </body>
     </html>
   );
 }

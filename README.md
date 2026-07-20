@@ -1,12 +1,12 @@
 # Subtitle Translator
 
-基于 Next.js App Router 的字幕翻译项目，UI 使用 [animal-island-ui](https://github.com/guokaigdg/animal-island-ui)。
+基于 Next.js App Router 的字幕翻译项目，UI 使用 [Chakra UI](https://chakra-ui.com/) v3。
 
 ## 技术栈
 
 - Next.js (App Router) + TypeScript
 - Tailwind CSS + CSS Modules (SCSS)
-- animal-island-ui
+- Chakra UI v3
 - MobX / ahooks
 - pnpm + ESLint + Prettier + Husky + commitlint
 
@@ -25,16 +25,17 @@ pnpm dev
 
 源码在 `src/` 下，路径别名 `@` → `src`：
 
-| 目录       | 用途            |
-| ---------- | --------------- |
-| `app/`     | 页面路由        |
-| `asset/`   | 通用静态资源    |
-| `com/`     | 通用组件        |
-| `config/`  | 定值配置        |
-| `modal/`   | 通用弹窗        |
-| `service/` | API 定义        |
-| `store/`   | 全局 MobX store |
-| `util/`    | 工具函数        |
+| 目录       | 用途               |
+| ---------- | ------------------ |
+| `app/`     | 页面路由           |
+| `asset/`   | 通用静态资源       |
+| `com/`     | 通用组件           |
+| `com/ui/`  | Chakra UI snippets |
+| `config/`  | 定值配置           |
+| `modal/`   | 通用弹窗           |
+| `service/` | API 定义           |
+| `store/`   | 全局 MobX store    |
+| `util/`    | 工具函数           |
 
 ## 常用脚本
 

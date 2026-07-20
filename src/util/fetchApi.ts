@@ -1,5 +1,3 @@
-import { Notification } from 'animal-island-ui';
-
 import { getApiRootUrl } from '@/config/url';
 import { isProd } from './env';
 
@@ -45,7 +43,9 @@ export function fetchApiDefaultErrorCb<T>(
     }
 
     if (msg && typeof window !== 'undefined') {
-      Notification.error(msg);
+      void import('@/com/ui/toaster').then(({ toaster }) => {
+        toaster.error({ title: msg });
+      });
     }
   }
 }
