@@ -24,7 +24,7 @@ import {
   taskStatusColor,
 } from '@/com/taskFormat';
 import { toaster } from '@/com/ui/toaster';
-import { deleteTask, fetchTasks, retryTask } from '@/service/tasks';
+import { deleteTask, fetchTasks, retryFailedTasks, retryTask } from '@/service/tasks';
 import type { TaskItem, TaskStatus } from '@/service/types';
 
 export default function TasksPage() {
@@ -34,6 +34,7 @@ export default function TasksPage() {
   const [selected, setSelected] = useState<TaskItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [retryingAllFailed, setRetryingAllFailed] = useState(false);
 
   const query = useMemo(
     () => ({
@@ -62,6 +63,29 @@ export default function TasksPage() {
       });
     } finally {
       setActingId(null);
+    }
+  }
+
+  async function handleRetryAllFailed() {
+    const ok = window.confirm('确认重新入队全部失败任务？');
+    if (!ok) return;
+
+    try {
+      setRetryingAllFailed(true);
+      const result = await retryFailedTasks();
+      if (result.count === 0) {
+        toaster.create({ title: '当前没有失败任务', type: 'info' });
+      } else {
+        toaster.success({ title: `已重新入队 ${result.count} 个失败任务` });
+      }
+      refresh();
+    } catch (err) {
+      toaster.error({
+        title: '批量重试失败',
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setRetryingAllFailed(false);
     }
   }
 
@@ -94,14 +118,26 @@ export default function TasksPage() {
   }
 
   const tasks = data ?? [];
+  const busy = retryingAllFailed || actingId != null;
 
   return (
     <Stack gap={6}>
       <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
         <Heading size="lg">Tasks</Heading>
-        <Text color="fg.muted" fontSize="sm">
-          {loading && !data ? '加载中…' : `共 ${tasks.length} 条 · 每 4 秒刷新`}
-        </Text>
+        <HStack gap={2}>
+          <Button
+            variant="outline"
+            colorPalette="orange"
+            loading={retryingAllFailed}
+            disabled={busy && !retryingAllFailed}
+            onClick={handleRetryAllFailed}
+          >
+            重试全部失败
+          </Button>
+          <Text color="fg.muted" fontSize="sm">
+            {loading && !data ? '加载中…' : `共 ${tasks.length} 条 · 每 4 秒刷新`}
+          </Text>
+        </HStack>
       </Flex>
 
       <Card.Root>
@@ -126,7 +162,7 @@ export default function TasksPage() {
               </NativeSelect.Field>
               <NativeSelect.Indicator />
             </NativeSelect.Root>
-            <Button variant="outline" onClick={refresh}>
+            <Button variant="outline" onClick={refresh} disabled={busy}>
               刷新
             </Button>
           </Flex>
@@ -196,6 +232,7 @@ export default function TasksPage() {
                             size="xs"
                             variant="outline"
                             loading={actingId === task.id}
+                            disabled={busy && actingId !== task.id}
                             onClick={() => handleRetry(task)}
                           >
                             Retry
@@ -205,6 +242,7 @@ export default function TasksPage() {
                             colorPalette="red"
                             variant="outline"
                             loading={actingId === task.id}
+                            disabled={busy && actingId !== task.id}
                             onClick={() => handleDelete(task)}
                           >
                             Delete

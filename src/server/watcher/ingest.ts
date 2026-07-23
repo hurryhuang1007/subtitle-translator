@@ -11,6 +11,7 @@ import { getFileFingerprint } from '@/server/util/fileHash';
 import {
   isAlreadyTranslatedOutput,
   isSubtitleFile,
+  matchesFilenamePattern,
   resolveOutputPath,
 } from '@/server/util/outputPath';
 
@@ -49,6 +50,11 @@ export async function ingestSubtitleFile(filePath: string) {
   const filename = path.basename(normalizedPath);
 
   if (!isSubtitleFile(normalizedPath)) {
+    return;
+  }
+
+  if (!matchesFilenamePattern(normalizedPath, settings.filenamePattern)) {
+    logger.info(`文件名不匹配规则，跳过: ${filename}`);
     return;
   }
 

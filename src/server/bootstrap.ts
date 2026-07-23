@@ -25,6 +25,9 @@ export async function bootstrapServer() {
     await processTask(taskId);
   });
 
+  const settings = await getSettings();
+  queue.setConcurrency(settings.queueConcurrency);
+
   const pendingTasks = await prisma.task.findMany({
     where: { status: TaskStatus.PENDING },
     select: { id: true },
@@ -32,7 +35,6 @@ export async function bootstrapServer() {
   });
   queue.hydrate(pendingTasks.map(task => task.id));
 
-  const settings = await getSettings();
   patchRuntimeStatus({
     watching: false,
     runningTasks: 0,

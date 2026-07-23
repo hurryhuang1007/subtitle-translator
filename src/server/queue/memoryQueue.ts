@@ -6,12 +6,12 @@ export type QueueJobHandler = (taskId: string) => Promise<void>;
 class MemoryQueue {
   private pending: string[] = [];
   private active = 0;
-  private readonly concurrency: number;
+  private concurrency: number;
   private handler: QueueJobHandler | null = null;
   private draining = false;
 
   constructor(concurrency = 1) {
-    this.concurrency = concurrency;
+    this.concurrency = Math.max(1, concurrency);
   }
 
   setHandler(handler: QueueJobHandler | null) {
@@ -19,6 +19,15 @@ class MemoryQueue {
     if (handler) {
       void this.drain();
     }
+  }
+
+  setConcurrency(concurrency: number) {
+    this.concurrency = Math.max(1, Math.floor(concurrency));
+    void this.drain();
+  }
+
+  getConcurrency() {
+    return this.concurrency;
   }
 
   size() {

@@ -35,11 +35,17 @@ export type StatusResponse = {
 
 export type AppSettings = {
   watchDirs: string[];
+  /** 匹配字幕文件名的正则；空字符串表示匹配全部字幕扩展名 */
+  filenamePattern: string;
   targetLanguage: string;
   outputSuffixTemplate: string;
   autoStart: boolean;
   skipIfExists: boolean;
   debounceMs: number;
+  /** 任务队列并发数 */
+  queueConcurrency: number;
+  /** 翻译批次间隔（毫秒） */
+  batchGapMs: number;
   googleApiKey: string;
 };
 

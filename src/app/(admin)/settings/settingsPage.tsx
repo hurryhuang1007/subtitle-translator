@@ -22,9 +22,12 @@ import type { AppSettings } from '@/service/types';
 
 type FormState = {
   watchDirsText: string;
+  filenamePattern: string;
   targetLanguage: string;
   outputSuffixTemplate: string;
   debounceMs: string;
+  queueConcurrency: string;
+  batchGapMs: string;
   autoStart: boolean;
   skipIfExists: boolean;
   googleApiKey: string;
@@ -33,9 +36,12 @@ type FormState = {
 function toFormState(settings: AppSettings): FormState {
   return {
     watchDirsText: settings.watchDirs.join('\n'),
+    filenamePattern: settings.filenamePattern,
     targetLanguage: settings.targetLanguage,
     outputSuffixTemplate: settings.outputSuffixTemplate,
     debounceMs: String(settings.debounceMs),
+    queueConcurrency: String(settings.queueConcurrency),
+    batchGapMs: String(settings.batchGapMs),
     autoStart: settings.autoStart,
     skipIfExists: settings.skipIfExists,
     googleApiKey: settings.googleApiKey,
@@ -48,9 +54,12 @@ function toPayload(form: FormState): Partial<AppSettings> {
       .split('\n')
       .map(line => line.trim())
       .filter(Boolean),
+    filenamePattern: form.filenamePattern.trim(),
     targetLanguage: form.targetLanguage.trim(),
     outputSuffixTemplate: form.outputSuffixTemplate.trim(),
     debounceMs: Number(form.debounceMs),
+    queueConcurrency: Number(form.queueConcurrency),
+    batchGapMs: Number(form.batchGapMs),
     autoStart: form.autoStart,
     skipIfExists: form.skipIfExists,
     googleApiKey: form.googleApiKey,
@@ -125,6 +134,21 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
+                <Field.Label>字幕文件名正则</Field.Label>
+                <Input
+                  value={form.filenamePattern}
+                  onChange={event => setForm({ ...form, filenamePattern: event.target.value })}
+                  placeholder={String.raw`.*\.(srt|ass|ssa)$`}
+                  fontFamily="mono"
+                />
+                <Field.HelperText>
+                  对文件名（basename）做不区分大小写匹配；留空表示匹配全部
+                  .srt/.ass/.ssa。例如只吃英语字幕：
+                  {String.raw`.*\.(eng|en)\.(srt|ass|ssa)$`}
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
                 <Field.Label>目标语言</Field.Label>
                 <Input
                   value={form.targetLanguage}
@@ -156,6 +180,34 @@ export default function SettingsPage() {
                 />
                 <Field.HelperText>
                   同一文件连续变更时的合并等待时间，建议 500–1500。
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>队列并发数</Field.Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={32}
+                  value={form.queueConcurrency}
+                  onChange={event => setForm({ ...form, queueConcurrency: event.target.value })}
+                />
+                <Field.HelperText>
+                  同时处理的翻译任务数，默认 1。提高可加快吞吐，但更容易触发免费翻译限流。
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>批次间隔（毫秒）</Field.Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={60000}
+                  value={form.batchGapMs}
+                  onChange={event => setForm({ ...form, batchGapMs: event.target.value })}
+                />
+                <Field.HelperText>
+                  同一任务内相邻翻译批次之间的等待时间，默认 400。设为 0 表示不等待。
                 </Field.HelperText>
               </Field.Root>
 

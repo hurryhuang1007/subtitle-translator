@@ -65,6 +65,7 @@ export async function processTask(taskId: string) {
         ? []
         : await translateTexts(sourceTexts, {
             to: settings.targetLanguage,
+            batchGapMs: settings.batchGapMs,
             onProgress: async (done, total) => {
               const ratio = total === 0 ? 1 : done / total;
               const progress = Math.min(90, Math.round(20 + ratio * 70));

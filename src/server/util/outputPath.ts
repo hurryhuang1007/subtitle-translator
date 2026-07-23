@@ -8,6 +8,21 @@ export function isSubtitleFile(filePath: string) {
   return SUBTITLE_EXTS.has(path.extname(filePath).toLowerCase());
 }
 
+/** 用设置里的正则匹配 basename；空正则视为全部通过 */
+export function matchesFilenamePattern(filePath: string, pattern: string) {
+  const trimmed = pattern.trim();
+  if (!trimmed) return true;
+
+  let regex: RegExp;
+  try {
+    regex = new RegExp(trimmed, 'i');
+  } catch {
+    return false;
+  }
+
+  return regex.test(path.basename(filePath));
+}
+
 /** zh-CN -> zh；en -> en */
 export function languageTag(targetLanguage: string) {
   const normalized = targetLanguage.trim().toLowerCase();

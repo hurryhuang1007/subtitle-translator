@@ -48,6 +48,41 @@ export async function retryTask(id: string) {
   return task;
 }
 
+export async function retryFailedTasks() {
+  const failed = await prisma.task.findMany({
+    where: { status: TaskStatus.FAILED },
+    select: { id: true, filename: true },
+    orderBy: { updatedAt: 'asc' },
+  });
+
+  if (failed.length === 0) {
+    return { count: 0 };
+  }
+
+  const ids = failed.map(task => task.id);
+
+  await prisma.task.updateMany({
+    where: {
+      id: { in: ids },
+      status: TaskStatus.FAILED,
+    },
+    data: {
+      status: TaskStatus.PENDING,
+      progress: 0,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+    },
+  });
+
+  const queue = getMemoryQueue();
+  for (const id of ids) {
+    queue.enqueue(id);
+  }
+
+  return { count: ids.length };
+}
+
 export async function deleteTask(id: string) {
   await prisma.task.delete({
     where: { id },

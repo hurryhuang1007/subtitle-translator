@@ -25,6 +25,13 @@ export function retryTask(id: string) {
   });
 }
 
+export function retryFailedTasks() {
+  return requestJson<{ count: number }>('/api/tasks/retry', {
+    method: 'POST',
+    body: JSON.stringify({ allFailed: true }),
+  });
+}
+
 export function deleteTask(id: string) {
   return requestJson<void>(`/api/tasks/${id}`, {
     method: 'DELETE',

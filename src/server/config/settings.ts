@@ -4,11 +4,17 @@ import { prisma } from '@/server/db/client';
 
 export type AppSettings = {
   watchDirs: string[];
+  /** 匹配字幕文件名的正则；空字符串表示匹配全部字幕扩展名 */
+  filenamePattern: string;
   targetLanguage: string;
   outputSuffixTemplate: string;
   autoStart: boolean;
   skipIfExists: boolean;
   debounceMs: number;
+  /** 任务队列并发数 */
+  queueConcurrency: number;
+  /** 翻译批次间隔（毫秒） */
+  batchGapMs: number;
   googleApiKey: string;
 };
 
@@ -21,11 +27,14 @@ function defaultWatchDir() {
 
 const DEFAULT_SETTINGS: AppSettings = {
   watchDirs: [defaultWatchDir()],
+  filenamePattern: String.raw`.*\.(srt|ass|ssa)$`,
   targetLanguage: 'zh-CN',
   outputSuffixTemplate: '.{lang}',
   autoStart: true,
   skipIfExists: true,
   debounceMs: 800,
+  queueConcurrency: 1,
+  batchGapMs: 400,
   googleApiKey: '',
 };
 
@@ -76,6 +85,11 @@ export async function updateSettings(input: Partial<AppSettings>): Promise<AppSe
   if (shouldRestartWatcher) {
     const { restartWatcher } = await import('@/server/watcher/watcher');
     await restartWatcher();
+  }
+
+  if (current.queueConcurrency !== merged.queueConcurrency) {
+    const { getMemoryQueue } = await import('@/server/queue/memoryQueue');
+    getMemoryQueue().setConcurrency(merged.queueConcurrency);
   }
 
   return merged;

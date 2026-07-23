@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Flex, Heading, HStack, Link as ChakraLink, Stack, Text } from '@chakra-ui/react';
+import { Box, Flex, HStack, Image, Link as ChakraLink, Stack, Text } from '@chakra-ui/react';
 import { useRequest } from 'ahooks';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -37,9 +37,27 @@ export function AdminShell({ children }: PropsWithChildren) {
         px={{ base: 2, md: 4 }}
         py={6}
       >
-        <Heading size={{ base: 'sm', md: 'md' }} mb={6}>
-          ST
-        </Heading>
+        <ChakraLink asChild mb={6} display="block" _hover={{ opacity: 0.9 }}>
+          <Link href="/dashboard" aria-label="Subtitle Translator">
+            <HStack gap={3} justify={{ base: 'center', md: 'flex-start' }}>
+              <Image
+                src="/logo.png"
+                alt=""
+                boxSize={{ base: '40px', md: '44px' }}
+                rounded="lg"
+                flexShrink={0}
+              />
+              <Box display={{ base: 'none', md: 'block' }} minW={0}>
+                <Text fontWeight="semibold" fontSize="sm" lineHeight="short" truncate>
+                  Subtitle
+                </Text>
+                <Text color="fg.muted" fontSize="xs" lineHeight="short" truncate>
+                  Translator
+                </Text>
+              </Box>
+            </HStack>
+          </Link>
+        </ChakraLink>
         <Stack gap={2}>
           {navItems.map(item => {
             const active = pathname === item.href;
@@ -71,7 +89,7 @@ export function AdminShell({ children }: PropsWithChildren) {
           gap={3}
         >
           <Text color="fg.muted" fontSize="sm" truncate>
-            SubtitleTranslator MVP
+            Subtitle Translator
           </Text>
           <HStack gap={3}>
             <Text color="fg.muted" fontSize="sm" display={{ base: 'none', sm: 'block' }}>
