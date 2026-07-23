@@ -1,0 +1,21 @@
+services:
+  subtitle-translator:
+    build: .
+    container_name: subtitle-translator
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      DOCKER: 'true'
+      WATCH_DIR: /media
+      DATABASE_URL: file:/app/data/app.db
+      NEXT_PUBLIC_API_ROOT: ''
+      NEXT_PUBLIC_IS_TEST: 'false'
+    volumes:
+      # 字幕监听目录
+      - ${MEDIA_PATH:-./media}:/media
+      # SQLite 持久化
+      - ${DATA_PATH:-./data}:/app/data
+      # 日志持久化
+      - ${LOGS_PATH:-./logs}:/app/logs
+    restart: unless-stopped

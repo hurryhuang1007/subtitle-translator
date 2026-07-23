@@ -40,3 +40,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+/prisma/dev.db
+/prisma/dev.db-journal
+/data/*.db
+/data/*.db-journal
+/logs/*.log
+/media/**
+!/media/.gitkeep
+/.claude/
+/.windsurf/
+/.agents/
+/skills-lock.json
