@@ -6,6 +6,8 @@ export type AppSettings = {
   watchDirs: string[];
   /** 匹配字幕文件名的正则；空字符串表示匹配全部字幕扩展名 */
   filenamePattern: string;
+  /** 原语言；auto 表示自动检测 */
+  sourceLanguage: string;
   targetLanguage: string;
   outputSuffixTemplate: string;
   autoStart: boolean;
@@ -15,6 +17,18 @@ export type AppSettings = {
   queueConcurrency: number;
   /** 翻译批次间隔（毫秒） */
   batchGapMs: number;
+  /**
+   * 对白上下文合并（滑动窗口/段落）。
+   * 开启后会把相邻多句合并成一段再翻译，通常更通顺。
+   */
+  contextAwareTranslate: boolean;
+  /** 上下文窗口大小（合并句数），仅 contextAwareTranslate 开启时生效 */
+  contextWindowSize: number;
+  /**
+   * 是否强制使用 Google batch 端点。
+   * false 时走更准确的 single 端点，但更容易限流。
+   */
+  forceBatch: boolean;
   googleApiKey: string;
 };
 
@@ -28,6 +42,7 @@ function defaultWatchDir() {
 const DEFAULT_SETTINGS: AppSettings = {
   watchDirs: [defaultWatchDir()],
   filenamePattern: String.raw`.*\.(srt|ass|ssa)$`,
+  sourceLanguage: 'auto',
   targetLanguage: 'zh-CN',
   outputSuffixTemplate: '.{lang}',
   autoStart: true,
@@ -35,6 +50,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   debounceMs: 800,
   queueConcurrency: 1,
   batchGapMs: 400,
+  contextAwareTranslate: true,
+  contextWindowSize: 6,
+  forceBatch: false,
   googleApiKey: '',
 };
 

@@ -34,6 +34,11 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.targetLanguage = language;
   }
 
+  if (body.sourceLanguage !== undefined) {
+    const language = String(body.sourceLanguage).trim() || 'auto';
+    next.sourceLanguage = language;
+  }
+
   if (body.outputSuffixTemplate !== undefined) {
     const suffix = String(body.outputSuffixTemplate).trim();
     if (!suffix) throw new Error('outputSuffixTemplate 不能为空');
@@ -62,6 +67,22 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
       throw new Error('batchGapMs 需为不小于 0 的数字');
     }
     next.batchGapMs = Math.min(60_000, Math.round(batchGapMs));
+  }
+
+  if (body.contextAwareTranslate !== undefined) {
+    next.contextAwareTranslate = Boolean(body.contextAwareTranslate);
+  }
+
+  if (body.contextWindowSize !== undefined) {
+    const contextWindowSize = Number(body.contextWindowSize);
+    if (!Number.isFinite(contextWindowSize) || contextWindowSize < 1) {
+      throw new Error('contextWindowSize 需为不小于 1 的数字');
+    }
+    next.contextWindowSize = Math.min(40, Math.round(contextWindowSize));
+  }
+
+  if (body.forceBatch !== undefined) {
+    next.forceBatch = Boolean(body.forceBatch);
   }
 
   if (body.autoStart !== undefined) {

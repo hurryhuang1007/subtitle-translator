@@ -5,15 +5,24 @@ import { logger } from '@/server/logger/logger';
 const MAX_CHARS_PER_BATCH = 4500;
 const MAX_ITEMS_PER_BATCH = 40;
 const DEFAULT_BATCH_GAP_MS = 400;
+const DEFAULT_CONTEXT_WINDOW_SIZE = 6;
 
-/** 单批次翻译最大重试次数（不含首次） */
+/** 单次翻译最大重试次数（不含首次） */
 const MAX_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 30_000;
 
 export type TranslateTextsOptions = {
   to: string;
+  /** auto / 空 = 自动检测 */
+  from?: string;
   batchGapMs?: number;
+  /** 默认 false：走更准确的 single 端点 */
+  forceBatch?: boolean;
+  /** 默认 true：相邻多句合并成段落再翻译 */
+  contextAware?: boolean;
+  /** 合并窗口句数，默认 6 */
+  contextWindowSize?: number;
   onProgress?: (done: number, total: number) => void | Promise<void>;
 };
 
@@ -108,7 +117,6 @@ export function isRetryableTranslateError(error: unknown) {
 }
 
 function retryDelayMs(attempt: number) {
-  // attempt: 1..N → 指数退避 + 少量抖动
   const exp = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
   const jitter = Math.floor(Math.random() * 250);
   return Math.min(RETRY_MAX_DELAY_MS, exp + jitter);
@@ -138,6 +146,12 @@ async function withTranslateRetry<T>(label: string, run: () => Promise<T>): Prom
   throw lastError;
 }
 
+function normalizeSourceLanguage(from?: string) {
+  const value = from?.trim().toLowerCase();
+  if (!value || value === 'auto') return undefined;
+  return value;
+}
+
 function buildBatches(texts: string[]) {
   const batches: string[][] = [];
   let current: string[] = [];
@@ -165,10 +179,55 @@ function buildBatches(texts: string[]) {
   return batches;
 }
 
-async function translateBatch(texts: string[], to: string) {
+/** 收集 index 之前最多 limit 条非空字幕，作为上文 */
+export function collectPreviousContext(texts: string[], index: number, limit: number) {
+  const context: string[] = [];
+  for (let j = index - 1; j >= 0 && context.length < limit; j -= 1) {
+    const text = texts[j] ?? '';
+    if (!text.trim()) continue;
+    context.unshift(text);
+  }
+  return context;
+}
+
+const LINE_MARK_RE = /⟦\s*(\d+)\s*⟧/g;
+
+/** 用不易被吃掉的标记包住每一行，便于翻译后精确抽回焦点句 */
+export function buildMarkedBlock(lines: string[]) {
+  return lines.map((line, i) => `⟦${i + 1}⟧${line}`).join('\n');
+}
+
+export function extractMarkedLine(translated: string, index1based: number) {
+  const normalized = translated.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const re = new RegExp(`⟦\\s*${index1based}\\s*⟧\\s*([\\s\\S]*?)(?=⟦\\s*\\d+\\s*⟧|$)`);
+  const match = re.exec(normalized);
+  if (!match) return null;
+  return (match[1] ?? '').replace(LINE_MARK_RE, '').replace(/^\s+|\s+$/g, '');
+}
+
+type TranslateCallOptions = {
+  to: string;
+  from?: string;
+  forceBatch: boolean;
+};
+
+async function translateOne(text: string, options: TranslateCallOptions) {
+  if (!text.trim()) return text;
+
+  const response = await translate(text, {
+    to: options.to,
+    from: options.from,
+    forceBatch: options.forceBatch,
+    fallbackBatch: true,
+  } as Parameters<typeof translate>[1]);
+
+  const item = Array.isArray(response) ? response[0] : response;
+  return item?.text ?? text;
+}
+
+async function translateArray(texts: string[], options: TranslateCallOptions) {
   if (texts.length === 0) return [] as string[];
 
-  // 空串直接保留，避免无意义请求
   const indexMap: number[] = [];
   const payload: string[] = [];
   texts.forEach((text, index) => {
@@ -179,12 +238,21 @@ async function translateBatch(texts: string[], to: string) {
   });
 
   const results = [...texts];
-  if (payload.length === 0) {
+  if (payload.length === 0) return results;
+
+  // 数组输入只会走 batch 端点；forceBatch=false 时改为逐条 single
+  if (!options.forceBatch) {
+    for (let i = 0; i < payload.length; i += 1) {
+      const originalIndex = indexMap[i];
+      if (originalIndex == null) continue;
+      results[originalIndex] = await translateOne(payload[i] ?? '', options);
+    }
     return results;
   }
 
   const response = await translate(payload, {
-    to,
+    to: options.to,
+    from: options.from,
     forceBatch: true,
   } as Parameters<typeof translate>[1]);
 
@@ -198,8 +266,47 @@ async function translateBatch(texts: string[], to: string) {
   return results;
 }
 
+/**
+ * 重叠滑动窗口：上文仅作消歧，只采用焦点句译文。
+ * 比「非重叠切段」更慢，但指代/语气通常更稳。
+ */
+async function translateFocusWithContext(
+  texts: string[],
+  index: number,
+  windowSize: number,
+  options: TranslateCallOptions
+) {
+  const current = texts[index] ?? '';
+  if (!current.trim()) return current;
+
+  const prevLimit = Math.max(0, Math.floor(windowSize) - 1);
+  const previous = collectPreviousContext(texts, index, prevLimit);
+  if (previous.length === 0) {
+    return translateOne(current, options);
+  }
+
+  const blockLines = [...previous, current];
+  const focus = blockLines.length;
+  const marked = buildMarkedBlock(blockLines);
+  const translated = await translateOne(marked, options);
+  const extracted = extractMarkedLine(translated, focus);
+  if (extracted != null && extracted.length > 0) {
+    return extracted;
+  }
+
+  logger.warn(`焦点句标记抽取失败 (#${index + 1})，回退为单句翻译: ${translated.slice(0, 80)}`);
+  return translateOne(current, options);
+}
+
 export async function translateTexts(texts: string[], options: TranslateTextsOptions) {
-  const { to, onProgress } = options;
+  const {
+    to,
+    onProgress,
+    forceBatch = false,
+    contextAware = true,
+    contextWindowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
+  } = options;
+  const from = normalizeSourceLanguage(options.from);
   const batchGapMs =
     typeof options.batchGapMs === 'number' && Number.isFinite(options.batchGapMs)
       ? Math.max(0, Math.round(options.batchGapMs))
@@ -209,17 +316,73 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     return [];
   }
 
-  const batches = buildBatches(texts);
-  const output: string[] = [];
+  const callOptions: TranslateCallOptions = {
+    to,
+    from,
+    forceBatch,
+  };
+
+  const output: string[] = new Array(texts.length);
   let done = 0;
 
+  if (contextAware) {
+    for (let i = 0; i < texts.length; i += 1) {
+      const text = texts[i] ?? '';
+      try {
+        output[i] = await withTranslateRetry(`翻译句子 ${i + 1}/${texts.length}`, () =>
+          translateFocusWithContext(texts, i, contextWindowSize, callOptions)
+        );
+      } catch (error) {
+        const message = errorMessage(error);
+        logger.error(`翻译句子失败 (${i + 1}/${texts.length}): ${message}`);
+        throw error;
+      }
+
+      done += 1;
+      await onProgress?.(done, texts.length);
+
+      if (i < texts.length - 1 && batchGapMs > 0 && text.trim()) {
+        await sleep(batchGapMs);
+      }
+    }
+    return output;
+  }
+
+  if (!forceBatch) {
+    for (let i = 0; i < texts.length; i += 1) {
+      const text = texts[i] ?? '';
+      try {
+        output[i] = await withTranslateRetry(`翻译句子 ${i + 1}/${texts.length}`, () =>
+          translateOne(text, callOptions)
+        );
+      } catch (error) {
+        const message = errorMessage(error);
+        logger.error(`翻译句子失败 (${i + 1}/${texts.length}): ${message}`);
+        throw error;
+      }
+
+      done += 1;
+      await onProgress?.(done, texts.length);
+
+      if (i < texts.length - 1 && batchGapMs > 0 && text.trim()) {
+        await sleep(batchGapMs);
+      }
+    }
+    return output;
+  }
+
+  const batches = buildBatches(texts);
+  let cursor = 0;
   for (let i = 0; i < batches.length; i += 1) {
     const batch = batches[i] ?? [];
     try {
       const translated = await withTranslateRetry(`翻译批次 ${i + 1}/${batches.length}`, () =>
-        translateBatch(batch, to)
+        translateArray(batch, callOptions)
       );
-      output.push(...translated);
+      translated.forEach(text => {
+        output[cursor] = text;
+        cursor += 1;
+      });
     } catch (error) {
       const message = errorMessage(error);
       logger.error(`翻译批次失败 (${i + 1}/${batches.length}): ${message}`);

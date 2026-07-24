@@ -37,6 +37,8 @@ export type AppSettings = {
   watchDirs: string[];
   /** 匹配字幕文件名的正则；空字符串表示匹配全部字幕扩展名 */
   filenamePattern: string;
+  /** 原语言；auto 表示自动检测 */
+  sourceLanguage: string;
   targetLanguage: string;
   outputSuffixTemplate: string;
   autoStart: boolean;
@@ -46,6 +48,12 @@ export type AppSettings = {
   queueConcurrency: number;
   /** 翻译批次间隔（毫秒） */
   batchGapMs: number;
+  /** 对白上下文合并（滑动窗口/段落） */
+  contextAwareTranslate: boolean;
+  /** 上下文窗口大小（合并句数） */
+  contextWindowSize: number;
+  /** 是否强制使用 Google batch 端点 */
+  forceBatch: boolean;
   googleApiKey: string;
 };
 
