@@ -23,7 +23,7 @@ movie.eng.srt    →  movie.eng.zh.srt
 
 - **目录监听**：chokidar 监听配置目录，文件写入稳定后自动入队
 - **字幕格式**：支持 `.srt` / `.ass` / `.ssa`，可用正则进一步过滤文件名
-- **批量翻译**：按句合并为批次请求 Google Translate，带限流重试与可配置并发/间隔
+- **批量翻译**：默认 Google 机器翻译（免费接口或 Cloud Translation）；可选启用 **OpenAI 兼容 LLM** 优先翻译，失败时可回退机器翻译；带限流重试与可配置并发/间隔、上下文窗口
 - **任务管理**：查看详情、单条 Retry、一键重试全部失败任务
 - **Web 后台**：Dashboard / Tasks / Settings / Logs，深色主题
 
@@ -39,7 +39,7 @@ movie.eng.srt    →  movie.eng.zh.srt
 
 - **Dashboard**：监听状态、运行/等待队列、今日成功失败、内存占用、最近翻译
 - **Tasks**：按文件名/路径与状态筛选，详情 / Retry / Delete，支持「重试全部失败」
-- **Settings**：监听目录、文件名正则、目标语言、输出后缀、Debounce、队列并发、批次间隔等
+- **Settings**：基础 / 机器翻译 / 大语言模型分卡配置（目录、语言、Google Key、LLM Base URL 等）
 - **Logs**：实时日志流，按等级过滤
 
 ## 技术栈
