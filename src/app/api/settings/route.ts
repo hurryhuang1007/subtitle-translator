@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-
 import { bootstrapServer } from '@/server/bootstrap';
 import { getSettings, updateSettings, type AppSettings } from '@/server/config/settings';
+import { apiFail, apiOk } from '@/server/util/apiResponse';
 
 function normalizeSettingsInput(body: Partial<AppSettings>) {
   const next: Partial<AppSettings> = {};
@@ -83,7 +82,7 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
 export async function GET() {
   await bootstrapServer();
   const settings = await getSettings();
-  return NextResponse.json(settings);
+  return apiOk(settings);
 }
 
 export async function PUT(request: Request) {
@@ -93,9 +92,9 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as Partial<AppSettings>;
     const normalized = normalizeSettingsInput(body);
     const settings = await updateSettings(normalized);
-    return NextResponse.json(settings);
+    return apiOk(settings);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ message }, { status: 400 });
+    return apiFail(message);
   }
 }

@@ -1,8 +1,8 @@
 import { TaskStatus } from '@prisma/client';
-import { NextResponse } from 'next/server';
 
 import { bootstrapServer } from '@/server/bootstrap';
 import { listTasks } from '@/server/tasks/service';
+import { apiOk } from '@/server/util/apiResponse';
 
 export async function GET(request: Request) {
   await bootstrapServer();
@@ -16,5 +16,5 @@ export async function GET(request: Request) {
       : undefined;
 
   const tasks = await listTasks({ keyword, status });
-  return NextResponse.json(tasks);
+  return apiOk(tasks);
 }

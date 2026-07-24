@@ -1,39 +1,41 @@
-import { requestJson } from '@/util/requestJson';
+import fetchApi from '@/util/fetchApi';
 
 import type { StatusResponse, TaskItem, TaskStatus } from './types';
 
 export function fetchStatus() {
-  return requestJson<StatusResponse>('/api/status');
+  return fetchApi<StatusResponse>('/api/status', { cache: 'no-store' });
 }
 
 export function fetchTasks(params?: { status?: TaskStatus; keyword?: string }) {
-  const search = new URLSearchParams();
-  if (params?.status) search.set('status', params.status);
-  if (params?.keyword) search.set('keyword', params.keyword);
-  const query = search.toString();
-  return requestJson<TaskItem[]>(`/api/tasks${query ? `?${query}` : ''}`);
+  return fetchApi<TaskItem[]>('/api/tasks', {
+    cache: 'no-store',
+    params: {
+      status: params?.status,
+      keyword: params?.keyword,
+    },
+  });
 }
 
 export function fetchTask(id: string) {
-  return requestJson<TaskItem>(`/api/tasks/${id}`);
+  return fetchApi<TaskItem>(`/api/tasks/${id}`, { cache: 'no-store' });
 }
 
 export function retryTask(id: string) {
-  return requestJson<TaskItem>('/api/tasks/retry', {
+  return fetchApi<TaskItem>('/api/tasks/retry', {
     method: 'POST',
-    body: JSON.stringify({ id }),
+    data: { id },
   });
 }
 
 export function retryFailedTasks() {
-  return requestJson<{ count: number }>('/api/tasks/retry', {
+  return fetchApi<{ count: number }>('/api/tasks/retry', {
     method: 'POST',
-    body: JSON.stringify({ allFailed: true }),
+    data: { allFailed: true },
   });
 }
 
 export function deleteTask(id: string) {
-  return requestJson<void>(`/api/tasks/${id}`, {
+  return fetchApi<null>(`/api/tasks/${id}`, {
     method: 'DELETE',
   });
 }

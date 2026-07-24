@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-
 import { bootstrapServer } from '@/server/bootstrap';
-import { logger, type LogLevel } from '@/server/logger/logger';
+import { logger } from '@/server/logger/logger';
+import { apiOk } from '@/server/util/apiResponse';
 
 export async function GET(request: Request) {
   await bootstrapServer();
@@ -17,17 +16,8 @@ export async function GET(request: Request) {
     entries = entries.filter(item => item.level === levelParam);
   }
 
-  return NextResponse.json({
+  return apiOk({
     entries,
     lines: entries.map(item => `[${item.time}] ${item.level} ${item.message}`),
   });
 }
-
-export type LogsResponse = {
-  entries: Array<{
-    level: LogLevel;
-    message: string;
-    time: string;
-  }>;
-  lines: string[];
-};

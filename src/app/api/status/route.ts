@@ -1,8 +1,7 @@
-import { NextResponse } from 'next/server';
-
 import { bootstrapServer } from '@/server/bootstrap';
 import { prisma } from '@/server/db/client';
 import { getRuntimeStatus } from '@/server/status/runtimeStatus';
+import { apiOk } from '@/server/util/apiResponse';
 
 function getTodayRange() {
   const now = new Date();
@@ -38,7 +37,7 @@ export async function GET() {
     }),
   ]);
 
-  return NextResponse.json({
+  return apiOk({
     watching: runtime.watching,
     running: runtime.runningTasks,
     waiting: runtime.waitingTasks,

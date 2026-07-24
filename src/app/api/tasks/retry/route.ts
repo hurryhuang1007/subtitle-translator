@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-
 import { bootstrapServer } from '@/server/bootstrap';
 import { retryFailedTasks, retryTask } from '@/server/tasks/service';
+import { apiFail, apiOk } from '@/server/util/apiResponse';
 
 export async function POST(request: Request) {
   await bootstrapServer();
@@ -10,13 +9,13 @@ export async function POST(request: Request) {
 
   if (body.allFailed) {
     const result = await retryFailedTasks();
-    return NextResponse.json(result);
+    return apiOk(result);
   }
 
   if (!body.id) {
-    return NextResponse.json({ message: 'Missing task id' }, { status: 400 });
+    return apiFail('Missing task id');
   }
 
   const task = await retryTask(body.id);
-  return NextResponse.json(task);
+  return apiOk(task);
 }

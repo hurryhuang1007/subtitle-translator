@@ -1,14 +1,14 @@
-import { requestJson } from '@/util/requestJson';
+import fetchApi from '@/util/fetchApi';
 
 import type { AppSettings } from './types';
 
 export function fetchSettings() {
-  return requestJson<AppSettings>('/api/settings');
+  return fetchApi<AppSettings>('/api/settings', { cache: 'no-store' });
 }
 
 export function updateSettings(payload: Partial<AppSettings>) {
-  return requestJson<AppSettings>('/api/settings', {
+  return fetchApi<AppSettings>('/api/settings', {
     method: 'PUT',
-    body: JSON.stringify(payload),
+    data: payload,
   });
 }

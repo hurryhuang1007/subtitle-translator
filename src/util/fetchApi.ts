@@ -86,9 +86,12 @@ export default function fetchApi<T>(
     const params = new URLSearchParams();
     Object.entries(options.params).forEach(([key, value]) => {
       if (value === '' || value == null) return;
-      params.append(key, value as string);
+      params.append(key, String(value));
     });
-    _url = `${url}?${params.toString()}`;
+    const query = params.toString();
+    if (query) {
+      _url = `${url}?${query}`;
+    }
   }
 
   if (options?.data) {
