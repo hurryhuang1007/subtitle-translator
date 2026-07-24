@@ -15,6 +15,13 @@ export type TaskItem = {
   updatedAt: string;
 };
 
+export type TaskListResponse = {
+  items: TaskItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type MemoryUsage = {
   rss: number;
   heapTotal: number;

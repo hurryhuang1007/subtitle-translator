@@ -24,30 +24,76 @@ import {
   taskStatusColor,
 } from '@/com/taskFormat';
 import { toaster } from '@/com/ui/toaster';
+import { Tooltip } from '@/com/ui/tooltip';
 import { deleteTask, fetchTasks, retryFailedTasks, retryTask } from '@/service/tasks';
 import type { TaskItem, TaskStatus } from '@/service/types';
+
+const DEFAULT_PAGE_SIZE = 100;
+
+function TruncatedText({
+  children,
+  fontWeight,
+  color,
+  fontSize,
+}: {
+  children: string;
+  fontWeight?: string;
+  color?: string;
+  fontSize?: string;
+}) {
+  return (
+    <Tooltip
+      content={children}
+      openDelay={200}
+      contentProps={{ maxW: 'min(80vw, 560px)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+    >
+      <Text fontWeight={fontWeight} color={color} fontSize={fontSize} truncate cursor="default">
+        {children}
+      </Text>
+    </Tooltip>
+  );
+}
 
 export default function TasksPage() {
   const [keyword, setKeyword] = useState('');
   const debouncedKeyword = useDebounce(keyword, { wait: 300 });
   const [status, setStatus] = useState<'' | TaskStatus>('');
+  const filterKey = `${debouncedKeyword.trim()}\0${status}`;
+  const [paging, setPaging] = useState({ filterKey, page: 1 });
+  const page = paging.filterKey === filterKey ? paging.page : 1;
   const [selected, setSelected] = useState<TaskItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [retryingAllFailed, setRetryingAllFailed] = useState(false);
 
+  function goToPage(nextPage: number | ((current: number) => number)) {
+    setPaging(prev => {
+      const current = prev.filterKey === filterKey ? prev.page : 1;
+      const page = typeof nextPage === 'function' ? nextPage(current) : nextPage;
+      return { filterKey, page: Math.max(1, page) };
+    });
+  }
+
   const query = useMemo(
     () => ({
       keyword: debouncedKeyword.trim() || undefined,
       status: status || undefined,
+      page,
+      pageSize: DEFAULT_PAGE_SIZE,
     }),
-    [debouncedKeyword, status]
+    [debouncedKeyword, status, page]
   );
 
   const { data, loading, error, refresh } = useRequest(() => fetchTasks(query), {
-    refreshDeps: [query.keyword, query.status],
+    refreshDeps: [query.keyword, query.status, query.page, query.pageSize],
     pollingInterval: 4000,
     pollingWhenHidden: false,
+    onSuccess(result) {
+      const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+      if (page > totalPages) {
+        goToPage(totalPages);
+      }
+    },
   });
 
   async function handleRetry(task: TaskItem) {
@@ -101,7 +147,12 @@ export default function TasksPage() {
         setDetailOpen(false);
         setSelected(null);
       }
-      refresh();
+      const remainingOnPage = (data?.items.length ?? 1) - 1;
+      if (remainingOnPage <= 0 && page > 1) {
+        goToPage(page - 1);
+      } else {
+        refresh();
+      }
     } catch (err) {
       toaster.error({
         title: 'Delete 失败',
@@ -117,9 +168,12 @@ export default function TasksPage() {
     setDetailOpen(true);
   }
 
-  const tasks = data ?? [];
+  const tasks = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pageSize = data?.pageSize ?? DEFAULT_PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const busy = retryingAllFailed || actingId != null;
-
+  const displayPage = Math.min(page, totalPages);
   return (
     <Stack gap={6}>
       <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
@@ -135,7 +189,7 @@ export default function TasksPage() {
             重试全部失败
           </Button>
           <Text color="fg.muted" fontSize="sm">
-            {loading && !data ? '加载中…' : `共 ${tasks.length} 条 · 每 4 秒刷新`}
+            {loading && !data ? '加载中…' : `共 ${total} 条 · 每 4 秒刷新`}
           </Text>
         </HStack>
       </Flex>
@@ -179,17 +233,19 @@ export default function TasksPage() {
 
       <Card.Root>
         <Card.Body p={0}>
-          <Table.ScrollArea>
-            <Table.Root size="sm" stickyHeader>
+          <Table.ScrollArea maxW="100%">
+            <Table.Root size="sm" stickyHeader tableLayout="fixed" w="100%">
               <Table.Header>
                 <Table.Row>
-                  <Table.ColumnHeader>文件名</Table.ColumnHeader>
-                  <Table.ColumnHeader>状态</Table.ColumnHeader>
-                  <Table.ColumnHeader>开始时间</Table.ColumnHeader>
-                  <Table.ColumnHeader>结束时间</Table.ColumnHeader>
-                  <Table.ColumnHeader>耗时</Table.ColumnHeader>
-                  <Table.ColumnHeader>错误信息</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="right">操作</Table.ColumnHeader>
+                  <Table.ColumnHeader w="36%">文件名</Table.ColumnHeader>
+                  <Table.ColumnHeader w="8%">状态</Table.ColumnHeader>
+                  <Table.ColumnHeader w="12%">开始时间</Table.ColumnHeader>
+                  <Table.ColumnHeader w="12%">结束时间</Table.ColumnHeader>
+                  <Table.ColumnHeader w="8%">耗时</Table.ColumnHeader>
+                  <Table.ColumnHeader w="14%">错误信息</Table.ColumnHeader>
+                  <Table.ColumnHeader w="10%" textAlign="right">
+                    操作
+                  </Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
@@ -204,11 +260,11 @@ export default function TasksPage() {
                 ) : (
                   tasks.map(task => (
                     <Table.Row key={task.id}>
-                      <Table.Cell>
-                        <Text fontWeight="medium">{task.filename}</Text>
-                        <Text color="fg.muted" fontSize="xs" truncate maxW="280px">
+                      <Table.Cell maxW={0} overflow="hidden">
+                        <TruncatedText fontWeight="medium">{task.filename}</TruncatedText>
+                        <TruncatedText color="fg.muted" fontSize="xs">
                           {task.path}
-                        </Text>
+                        </TruncatedText>
                       </Table.Cell>
                       <Table.Cell>
                         <Badge colorPalette={taskStatusColor(task.status)}>{task.status}</Badge>
@@ -218,10 +274,10 @@ export default function TasksPage() {
                       <Table.Cell whiteSpace="nowrap">
                         {formatTaskDuration(task.startedAt, task.finishedAt)}
                       </Table.Cell>
-                      <Table.Cell>
-                        <Text color="fg.muted" fontSize="sm" truncate maxW="220px">
+                      <Table.Cell maxW={0} overflow="hidden">
+                        <TruncatedText color="fg.muted" fontSize="sm">
                           {task.error || '-'}
-                        </Text>
+                        </TruncatedText>
                       </Table.Cell>
                       <Table.Cell textAlign="right">
                         <HStack gap={2} justify="flex-end">
@@ -257,6 +313,30 @@ export default function TasksPage() {
           </Table.ScrollArea>
         </Card.Body>
       </Card.Root>
+
+      <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
+        <Text color="fg.muted" fontSize="sm">
+          第 {displayPage} / {totalPages} 页 · 每页 {pageSize} 条
+        </Text>
+        <HStack gap={2}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={displayPage <= 1 || busy}
+            onClick={() => goToPage(current => Math.max(1, current - 1))}
+          >
+            上一页
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={displayPage >= totalPages || busy}
+            onClick={() => goToPage(current => current + 1)}
+          >
+            下一页
+          </Button>
+        </HStack>
+      </Flex>
 
       <TaskDetailDrawer
         task={selected}

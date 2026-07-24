@@ -1,17 +1,24 @@
 import fetchApi from '@/util/fetchApi';
 
-import type { StatusResponse, TaskItem, TaskStatus } from './types';
+import type { StatusResponse, TaskItem, TaskListResponse, TaskStatus } from './types';
 
 export function fetchStatus() {
   return fetchApi<StatusResponse>('/api/status', { cache: 'no-store' });
 }
 
-export function fetchTasks(params?: { status?: TaskStatus; keyword?: string }) {
-  return fetchApi<TaskItem[]>('/api/tasks', {
+export function fetchTasks(params?: {
+  status?: TaskStatus;
+  keyword?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return fetchApi<TaskListResponse>('/api/tasks', {
     cache: 'no-store',
     params: {
       status: params?.status,
       keyword: params?.keyword,
+      page: params?.page,
+      pageSize: params?.pageSize,
     },
   });
 }

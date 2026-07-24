@@ -6,9 +6,16 @@ import { getMemoryQueue } from '@/server/queue/memoryQueue';
 export type TaskFilter = {
   status?: TaskStatus;
   keyword?: string;
+  page?: number;
+  pageSize?: number;
 };
 
+const DEFAULT_PAGE_SIZE = 100;
+
 export async function listTasks(filter: TaskFilter = {}) {
+  const page = Math.max(1, Math.floor(filter.page ?? 1));
+  const pageSize = Math.max(1, Math.floor(filter.pageSize ?? DEFAULT_PAGE_SIZE));
+
   const where: Prisma.TaskWhereInput = {};
 
   if (filter.status) {
@@ -19,11 +26,22 @@ export async function listTasks(filter: TaskFilter = {}) {
     where.OR = [{ filename: { contains: filter.keyword } }, { path: { contains: filter.keyword } }];
   }
 
-  return prisma.task.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  });
+  const [total, items] = await Promise.all([
+    prisma.task.count({ where }),
+    prisma.task.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getTaskById(id: string) {
