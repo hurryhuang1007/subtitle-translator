@@ -3,6 +3,7 @@ import { getSettings } from '@/server/config/settings';
 import { prisma } from '@/server/db/client';
 import { getRuntimeStatus } from '@/server/status/runtimeStatus';
 import { apiOk } from '@/server/util/apiResponse';
+import { getScanProgress } from '@/server/watcher/scan';
 
 function getTodayRange() {
   const now = new Date();
@@ -48,5 +49,6 @@ export async function GET() {
     failedToday,
     memory: process.memoryUsage(),
     recentTasks,
+    scan: getScanProgress(),
   });
 }

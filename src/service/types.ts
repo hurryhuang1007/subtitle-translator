@@ -40,14 +40,27 @@ export type StatusResponse = {
   failedToday: number;
   memory: MemoryUsage;
   recentTasks: TaskItem[];
+  scan: ScanProgress;
 };
 
-export type ScanResponse = {
-  dirs: number;
-  files: number;
+export type ScanStatus = 'idle' | 'running' | 'done' | 'error';
+export type ScanPhase = 'walking' | 'ingesting' | null;
+
+export type ScanProgress = {
+  status: ScanStatus;
+  phase: ScanPhase;
+  dirsVisited: number;
+  filesFound: number;
+  processed: number;
   enqueued: number;
   skipped: number;
+  unchanged: number;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
 };
+
+export type ScanResponse = ScanProgress;
 
 export type AppSettings = {
   watchDirs: string[];

@@ -8,14 +8,22 @@ export type FileFingerprintInput = {
   size: bigint;
 };
 
-export async function getFileFingerprint(filePath: string): Promise<FileFingerprintInput> {
+export async function getFileStatFingerprint(filePath: string) {
   const fileStat = await stat(filePath);
+  return {
+    mtimeMs: BigInt(Math.trunc(fileStat.mtimeMs)),
+    size: BigInt(fileStat.size),
+  };
+}
+
+export async function getFileFingerprint(filePath: string): Promise<FileFingerprintInput> {
+  const { mtimeMs, size } = await getFileStatFingerprint(filePath);
   const hash = await hashFile(filePath);
 
   return {
     hash,
-    mtimeMs: BigInt(Math.trunc(fileStat.mtimeMs)),
-    size: BigInt(fileStat.size),
+    mtimeMs,
+    size,
   };
 }
 

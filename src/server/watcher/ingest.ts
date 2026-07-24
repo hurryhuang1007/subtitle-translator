@@ -7,7 +7,7 @@ import { getSettings } from '@/server/config/settings';
 import { prisma } from '@/server/db/client';
 import { logger } from '@/server/logger/logger';
 import { getMemoryQueue } from '@/server/queue/memoryQueue';
-import { getFileFingerprint } from '@/server/util/fileHash';
+import { getFileFingerprint, getFileStatFingerprint } from '@/server/util/fileHash';
 import {
   isAlreadyTranslatedOutput,
   isSubtitleFile,
@@ -65,9 +65,9 @@ export async function ingestSubtitleFile(filePath: string): Promise<IngestResult
     return 'ignored';
   }
 
-  let fingerprint;
+  let statFingerprint;
   try {
-    fingerprint = await getFileFingerprint(normalizedPath);
+    statFingerprint = await getFileStatFingerprint(normalizedPath);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(`读取文件失败，跳过: ${normalizedPath} (${message})`);
@@ -78,14 +78,22 @@ export async function ingestSubtitleFile(filePath: string): Promise<IngestResult
     where: { path: normalizedPath },
   });
 
-  // 内容未变化：静默跳过，避免 watcher 重启反复写入 SKIPPED
+  // mtime + size 未变：跳过全量 hash，避免大批量扫描时卡住
   if (
     existingFingerprint &&
-    existingFingerprint.hash === fingerprint.hash &&
-    existingFingerprint.mtimeMs === fingerprint.mtimeMs &&
-    existingFingerprint.size === fingerprint.size
+    existingFingerprint.mtimeMs === statFingerprint.mtimeMs &&
+    existingFingerprint.size === statFingerprint.size
   ) {
     return 'unchanged';
+  }
+
+  let fingerprint;
+  try {
+    fingerprint = await getFileFingerprint(normalizedPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`读取文件失败，跳过: ${normalizedPath} (${message})`);
+    return 'ignored';
   }
 
   const outputPath = resolveOutputPath(normalizedPath, settings);

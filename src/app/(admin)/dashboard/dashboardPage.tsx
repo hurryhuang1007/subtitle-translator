@@ -14,7 +14,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { useRequest } from 'ahooks';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { formatTaskTime, taskStatusColor } from '@/com/taskFormat';
 import { toaster } from '@/com/ui/toaster';
@@ -93,7 +93,8 @@ function RecentTaskRow({ task }: { task: TaskItem }) {
 
 export default function DashboardPage() {
   const [toggling, setToggling] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  const [startingScan, setStartingScan] = useState(false);
+  const lastScanStatus = useRef<string | null>(null);
   const { data, loading, error, refresh } = useRequest(fetchStatus, {
     pollingInterval: 3000,
     pollingWhenHidden: false,
@@ -101,6 +102,29 @@ export default function DashboardPage() {
 
   const translationOn = data?.translationEnabled ?? false;
   const watching = data?.watching ?? false;
+  const scan = data?.scan;
+  const scanRunning = scan?.status === 'running' || startingScan;
+
+  useEffect(() => {
+    const status = scan?.status ?? null;
+    const prev = lastScanStatus.current;
+    lastScanStatus.current = status;
+
+    if (prev === 'running' && status === 'done' && scan) {
+      toaster.success({
+        title: '扫描完成',
+        description: `发现 ${scan.filesFound} 个字幕，新入队 ${scan.enqueued}，跳过 ${scan.skipped}，未变 ${scan.unchanged}`,
+      });
+      void refresh();
+    }
+
+    if (prev === 'running' && status === 'error') {
+      toaster.error({
+        title: '扫描失败',
+        description: scan?.error || '未知错误',
+      });
+    }
+  }, [scan, refresh]);
 
   async function handleTranslationToggle(checked: boolean) {
     try {
@@ -123,32 +147,54 @@ export default function DashboardPage() {
 
   async function handleScan() {
     try {
-      setScanning(true);
-      const result = await scanWatchDirs();
+      setStartingScan(true);
+      await scanWatchDirs();
       await refresh();
       toaster.success({
-        title: '扫描完成',
-        description: `发现 ${result.files} 个字幕文件，新入队 ${result.enqueued}，跳过 ${result.skipped}`,
+        title: '已开始扫描',
+        description: '正在后台深度扫描，进度会显示在 Watching 卡片上',
       });
     } catch (err) {
       toaster.error({
-        title: '扫描失败',
+        title: '无法开始扫描',
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
-      setScanning(false);
+      setStartingScan(false);
     }
+  }
+
+  function watchingHint() {
+    if (!data) return undefined;
+    if (scan?.status === 'running') {
+      if (scan.phase === 'walking') {
+        return `扫描中 · 已遍历 ${scan.dirsVisited} 目录，发现 ${scan.filesFound} 个字幕`;
+      }
+      return `入库中 · ${scan.processed}/${scan.filesFound}（新入队 ${scan.enqueued}）`;
+    }
+    if (watching) return '目录监听中';
+    if (scan?.status === 'done') {
+      return `上次扫描：发现 ${scan.filesFound}，入队 ${scan.enqueued}`;
+    }
+    if (scan?.status === 'error') return `上次扫描失败：${scan.error}`;
+    return '未监听';
   }
 
   const metrics = [
     {
       label: 'Watching',
       value: data ? (watching ? 'ON' : 'OFF') : '-',
-      hint: watching ? '目录监听中' : '未监听',
+      hint: watchingHint(),
       action:
         data && !watching ? (
-          <Button size="sm" variant="outline" loading={scanning} onClick={() => void handleScan()}>
-            开始扫描
+          <Button
+            size="sm"
+            variant="outline"
+            loading={scanRunning}
+            disabled={scanRunning}
+            onClick={() => void handleScan()}
+          >
+            {scanRunning ? '扫描中' : '开始扫描'}
           </Button>
         ) : undefined,
     },
