@@ -1,4 +1,3 @@
-import { bootstrapServer } from '@/server/bootstrap';
 import { getSettings } from '@/server/config/settings';
 import { prisma } from '@/server/db/client';
 import { getRuntimeStatus } from '@/server/status/runtimeStatus';
@@ -15,8 +14,6 @@ function getTodayRange() {
 }
 
 export async function GET() {
-  await bootstrapServer();
-
   const runtime = getRuntimeStatus();
   const { start, end } = getTodayRange();
 

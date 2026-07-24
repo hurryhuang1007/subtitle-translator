@@ -1,4 +1,3 @@
-import { bootstrapServer } from '@/server/bootstrap';
 import { deleteTask, getTaskById } from '@/server/tasks/service';
 import { apiFail, apiOk } from '@/server/util/apiResponse';
 
@@ -7,7 +6,6 @@ type Params = {
 };
 
 export async function GET(_: Request, { params }: Params) {
-  await bootstrapServer();
   const { id } = await params;
   const task = await getTaskById(id);
 
@@ -19,7 +17,6 @@ export async function GET(_: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
-  await bootstrapServer();
   const { id } = await params;
   await deleteTask(id);
   return apiOk(null);

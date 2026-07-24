@@ -1,9 +1,7 @@
-import { bootstrapServer } from '@/server/bootstrap';
 import { logger } from '@/server/logger/logger';
 import { apiOk } from '@/server/util/apiResponse';
 
 export async function GET(request: Request) {
-  await bootstrapServer();
   await logger.hydrateFromFile();
 
   const { searchParams } = new URL(request.url);

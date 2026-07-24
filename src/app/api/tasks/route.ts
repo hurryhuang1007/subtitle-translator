@@ -1,6 +1,5 @@
 import { TaskStatus } from '@prisma/client';
 
-import { bootstrapServer } from '@/server/bootstrap';
 import { listTasks } from '@/server/tasks/service';
 import { apiOk } from '@/server/util/apiResponse';
 
@@ -12,8 +11,6 @@ function parsePositiveInt(value: string | null, fallback: number) {
 }
 
 export async function GET(request: Request) {
-  await bootstrapServer();
-
   const { searchParams } = new URL(request.url);
   const keyword = searchParams.get('keyword')?.trim() || undefined;
   const statusParam = searchParams.get('status');

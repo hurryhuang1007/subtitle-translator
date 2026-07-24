@@ -1,4 +1,3 @@
-import { bootstrapServer } from '@/server/bootstrap';
 import { getSettings, updateSettings, type AppSettings } from '@/server/config/settings';
 import { apiFail, apiOk } from '@/server/util/apiResponse';
 
@@ -166,14 +165,11 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
 }
 
 export async function GET() {
-  await bootstrapServer();
   const settings = await getSettings();
   return apiOk(settings);
 }
 
 export async function PUT(request: Request) {
-  await bootstrapServer();
-
   try {
     const body = (await request.json()) as Partial<AppSettings>;
     const normalized = normalizeSettingsInput(body);

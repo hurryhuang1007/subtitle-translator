@@ -1,10 +1,7 @@
-import { bootstrapServer } from '@/server/bootstrap';
 import { retryFailedTasks, retryTask } from '@/server/tasks/service';
 import { apiFail, apiOk } from '@/server/util/apiResponse';
 
 export async function POST(request: Request) {
-  await bootstrapServer();
-
   const body = (await request.json()) as { id?: string; allFailed?: boolean };
 
   if (body.allFailed) {
