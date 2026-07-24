@@ -3,6 +3,7 @@
 import {
   Badge,
   Box,
+  Button,
   Card,
   Flex,
   Heading,
@@ -13,12 +14,12 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { useRequest } from 'ahooks';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { formatTaskTime, taskStatusColor } from '@/com/taskFormat';
 import { toaster } from '@/com/ui/toaster';
 import { updateSettings } from '@/service/settings';
-import { fetchStatus } from '@/service/tasks';
+import { fetchStatus, scanWatchDirs } from '@/service/tasks';
 import type { TaskItem } from '@/service/types';
 
 function formatBytes(bytes: number) {
@@ -30,25 +31,32 @@ function MetricCard({
   label,
   value,
   hint,
+  action,
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  action?: ReactNode;
 }) {
   return (
-    <Card.Root>
+    <Card.Root h="full">
       <Card.Body>
-        <Text color="fg.muted" fontSize="sm">
-          {label}
-        </Text>
-        <Text fontSize="2xl" mt={2} fontWeight="semibold">
-          {value}
-        </Text>
-        {hint ? (
-          <Text color="fg.muted" fontSize="xs" mt={1}>
-            {hint}
-          </Text>
-        ) : null}
+        <Flex align="center" justify="space-between" gap={4} h="full">
+          <Box minW={0}>
+            <Text color="fg.muted" fontSize="sm">
+              {label}
+            </Text>
+            <Text fontSize="2xl" mt={2} fontWeight="semibold" lineHeight="shorter">
+              {value}
+            </Text>
+            {hint ? (
+              <Text color="fg.muted" fontSize="xs" mt={1}>
+                {hint}
+              </Text>
+            ) : null}
+          </Box>
+          {action ? <Box flexShrink={0}>{action}</Box> : null}
+        </Flex>
       </Card.Body>
     </Card.Root>
   );
@@ -85,12 +93,14 @@ function RecentTaskRow({ task }: { task: TaskItem }) {
 
 export default function DashboardPage() {
   const [toggling, setToggling] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const { data, loading, error, refresh } = useRequest(fetchStatus, {
     pollingInterval: 3000,
     pollingWhenHidden: false,
   });
 
   const translationOn = data?.translationEnabled ?? false;
+  const watching = data?.watching ?? false;
 
   async function handleTranslationToggle(checked: boolean) {
     try {
@@ -111,11 +121,36 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleScan() {
+    try {
+      setScanning(true);
+      const result = await scanWatchDirs();
+      await refresh();
+      toaster.success({
+        title: '扫描完成',
+        description: `发现 ${result.files} 个字幕文件，新入队 ${result.enqueued}，跳过 ${result.skipped}`,
+      });
+    } catch (err) {
+      toaster.error({
+        title: '扫描失败',
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setScanning(false);
+    }
+  }
+
   const metrics = [
     {
       label: 'Watching',
-      value: data ? (data.watching ? 'ON' : 'OFF') : '-',
-      hint: data?.watching ? '目录监听中' : '未监听',
+      value: data ? (watching ? 'ON' : 'OFF') : '-',
+      hint: watching ? '目录监听中' : '未监听',
+      action:
+        data && !watching ? (
+          <Button size="sm" variant="outline" loading={scanning} onClick={() => void handleScan()}>
+            开始扫描
+          </Button>
+        ) : undefined,
     },
     { label: 'Running', value: data?.running ?? '-', hint: '正在翻译' },
     { label: 'Waiting', value: data?.waiting ?? '-', hint: '队列等待' },
@@ -166,7 +201,13 @@ export default function DashboardPage() {
 
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={4}>
         {metrics.map(item => (
-          <MetricCard key={item.label} label={item.label} value={item.value} hint={item.hint} />
+          <MetricCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            hint={item.hint}
+            action={item.action}
+          />
         ))}
       </SimpleGrid>
 

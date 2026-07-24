@@ -1,9 +1,15 @@
 import fetchApi from '@/util/fetchApi';
 
-import type { StatusResponse, TaskItem, TaskListResponse, TaskStatus } from './types';
+import type { ScanResponse, StatusResponse, TaskItem, TaskListResponse, TaskStatus } from './types';
 
 export function fetchStatus() {
   return fetchApi<StatusResponse>('/api/status', { cache: 'no-store' });
+}
+
+export function scanWatchDirs() {
+  return fetchApi<ScanResponse>('/api/scan', {
+    method: 'POST',
+  });
 }
 
 export function fetchTasks(params?: {

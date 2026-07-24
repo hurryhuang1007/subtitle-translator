@@ -44,23 +44,25 @@ async function upsertFingerprint(
   });
 }
 
-export async function ingestSubtitleFile(filePath: string) {
+export type IngestResult = 'enqueued' | 'skipped' | 'unchanged' | 'duplicate' | 'ignored';
+
+export async function ingestSubtitleFile(filePath: string): Promise<IngestResult> {
   const settings = await getSettings();
   const normalizedPath = path.resolve(filePath);
   const filename = path.basename(normalizedPath);
 
   if (!isSubtitleFile(normalizedPath)) {
-    return;
+    return 'ignored';
   }
 
   if (!matchesFilenamePattern(normalizedPath, settings.filenamePattern)) {
     logger.info(`文件名不匹配规则，跳过: ${filename}`);
-    return;
+    return 'ignored';
   }
 
   if (isAlreadyTranslatedOutput(normalizedPath, settings)) {
     logger.info(`跳过已翻译输出文件: ${filename}`);
-    return;
+    return 'ignored';
   }
 
   let fingerprint;
@@ -69,7 +71,7 @@ export async function ingestSubtitleFile(filePath: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(`读取文件失败，跳过: ${normalizedPath} (${message})`);
-    return;
+    return 'ignored';
   }
 
   const existingFingerprint = await prisma.fileFingerprint.findUnique({
@@ -83,7 +85,7 @@ export async function ingestSubtitleFile(filePath: string) {
     existingFingerprint.mtimeMs === fingerprint.mtimeMs &&
     existingFingerprint.size === fingerprint.size
   ) {
-    return;
+    return 'unchanged';
   }
 
   const outputPath = resolveOutputPath(normalizedPath, settings);
@@ -102,7 +104,7 @@ export async function ingestSubtitleFile(filePath: string) {
     });
     await upsertFingerprint(normalizedPath, fingerprint);
     logger.info(`目标已存在，SKIPPED: ${filename} -> ${path.basename(outputPath)}`);
-    return;
+    return 'skipped';
   }
 
   const active = await prisma.task.findFirst({
@@ -114,7 +116,7 @@ export async function ingestSubtitleFile(filePath: string) {
 
   if (active) {
     logger.info(`已有进行中任务，跳过重复入队: ${filename}`);
-    return;
+    return 'duplicate';
   }
 
   const task = await prisma.task.create({
@@ -131,4 +133,5 @@ export async function ingestSubtitleFile(filePath: string) {
   await upsertFingerprint(normalizedPath, fingerprint);
   getMemoryQueue().enqueue(task.id);
   logger.info(`已入队: ${filename} (${task.id})`);
+  return 'enqueued';
 }

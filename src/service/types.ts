@@ -42,6 +42,13 @@ export type StatusResponse = {
   recentTasks: TaskItem[];
 };
 
+export type ScanResponse = {
+  dirs: number;
+  files: number;
+  enqueued: number;
+  skipped: number;
+};
+
 export type AppSettings = {
   watchDirs: string[];
   /** 匹配字幕文件名的正则；空字符串表示匹配全部字幕扩展名 */
