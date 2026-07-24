@@ -2,18 +2,7 @@
   "name": "subtitle-translator",
   "version": "0.1.0",
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "better-sqlite3": "13.0.1"
-    },
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "@prisma/engines",
-      "prisma",
-      "sharp",
-      "unrs-resolver"
-    ]
-  },
+  "packageManager": "pnpm@10.10.0",
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
