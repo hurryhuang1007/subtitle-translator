@@ -188,3 +188,7 @@ pnpm smoke:translate # 翻译冒烟测试
 2. 否则（或 LLM 失败且开启「回退机器翻译」）→ Google Cloud Translation（有 Key）或免费网页接口
 
 机器翻译与 LLM 各自有独立的「一次窗口大小 / 最多上文」配置。LLM 默认窗口 800、上文 300（字幕单句较短，按常见 128k 上下文估算）。
+
+## License
+
+本项目采用 [MIT License](./LICENSE) 开源。
