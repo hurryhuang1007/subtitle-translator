@@ -111,17 +111,18 @@ export default function DashboardPage() {
     lastScanStatus.current = status;
 
     if (prev === 'running' && status === 'done' && scan) {
-      toaster.success({
-        title: '扫描完成',
-        description: `发现 ${scan.filesFound} 个字幕，新入队 ${scan.enqueued}，跳过 ${scan.skipped}，未变 ${scan.unchanged}`,
+      const description = `发现 ${scan.filesFound} 个字幕，新入队 ${scan.enqueued}，跳过 ${scan.skipped}，未变 ${scan.unchanged}`;
+      // toaster 内部会 flushSync，需离开 effect 渲染周期后再调
+      queueMicrotask(() => {
+        toaster.success({ title: '扫描完成', description });
       });
       void refresh();
     }
 
     if (prev === 'running' && status === 'error') {
-      toaster.error({
-        title: '扫描失败',
-        description: scan?.error || '未知错误',
+      const description = scan?.error || '未知错误';
+      queueMicrotask(() => {
+        toaster.error({ title: '扫描失败', description });
       });
     }
   }, [scan, refresh]);
