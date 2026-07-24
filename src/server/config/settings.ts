@@ -22,8 +22,10 @@ export type AppSettings = {
    * 开启后会把相邻多句合并成一段再翻译，通常更通顺。
    */
   contextAwareTranslate: boolean;
-  /** 上下文窗口大小（合并句数），仅 contextAwareTranslate 开启时生效 */
+  /** 一次翻译窗口大小（每批焦点句数），仅 contextAwareTranslate 开启时生效 */
   contextWindowSize: number;
+  /** 每批最多携带的上文句数（仅作消歧，不输出），仅 contextAwareTranslate 开启时生效 */
+  contextPreviousSize: number;
   /**
    * 是否强制使用 Google batch 端点。
    * false 时走更准确的 single 端点，但更容易限流。
@@ -51,7 +53,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   queueConcurrency: 1,
   batchGapMs: 400,
   contextAwareTranslate: true,
-  contextWindowSize: 6,
+  contextWindowSize: 500,
+  contextPreviousSize: 100,
   forceBatch: false,
   googleApiKey: '',
 };

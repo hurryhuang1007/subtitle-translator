@@ -78,7 +78,15 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     if (!Number.isFinite(contextWindowSize) || contextWindowSize < 1) {
       throw new Error('contextWindowSize 需为不小于 1 的数字');
     }
-    next.contextWindowSize = Math.min(40, Math.round(contextWindowSize));
+    next.contextWindowSize = Math.round(contextWindowSize);
+  }
+
+  if (body.contextPreviousSize !== undefined) {
+    const contextPreviousSize = Number(body.contextPreviousSize);
+    if (!Number.isFinite(contextPreviousSize) || contextPreviousSize < 0) {
+      throw new Error('contextPreviousSize 需为不小于 0 的数字');
+    }
+    next.contextPreviousSize = Math.round(contextPreviousSize);
   }
 
   if (body.forceBatch !== undefined) {

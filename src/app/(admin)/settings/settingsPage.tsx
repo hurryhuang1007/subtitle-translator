@@ -47,6 +47,7 @@ type FormState = {
   batchGapMs: string;
   contextAwareTranslate: boolean;
   contextWindowSize: string;
+  contextPreviousSize: string;
   forceBatch: boolean;
   autoStart: boolean;
   skipIfExists: boolean;
@@ -75,6 +76,7 @@ function toFormState(settings: AppSettings): FormState {
     batchGapMs: String(settings.batchGapMs),
     contextAwareTranslate: settings.contextAwareTranslate,
     contextWindowSize: String(settings.contextWindowSize),
+    contextPreviousSize: String(settings.contextPreviousSize),
     forceBatch: settings.forceBatch,
     autoStart: settings.autoStart,
     skipIfExists: settings.skipIfExists,
@@ -102,6 +104,7 @@ function toPayload(form: FormState): Partial<AppSettings> {
     batchGapMs: Number(form.batchGapMs),
     contextAwareTranslate: form.contextAwareTranslate,
     contextWindowSize: Number(form.contextWindowSize),
+    contextPreviousSize: Number(form.contextPreviousSize),
     forceBatch: form.forceBatch,
     autoStart: form.autoStart,
     skipIfExists: form.skipIfExists,
@@ -254,7 +257,7 @@ export default function SettingsPage() {
                   <Stack gap={0}>
                     <Field.Label mb={0}>对白上下文合并</Field.Label>
                     <Field.HelperText mt={1}>
-                      开启后对每句带上前文（重叠滑动窗口）再翻译，只保留当前句结果，通常更通顺，但更慢、更易触发限流。默认开启。
+                      开启后按窗口批量翻译，并携带上文作消歧，只保留焦点句结果，通常更通顺。默认开启。
                     </Field.HelperText>
                   </Stack>
                   <Switch.Root
@@ -272,18 +275,31 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
-                <Field.Label>上下文窗口大小（句）</Field.Label>
+                <Field.Label>一次窗口大小（句）</Field.Label>
                 <Input
                   type="number"
                   min={1}
-                  max={40}
                   value={form.contextWindowSize}
                   disabled={!form.contextAwareTranslate}
                   onChange={event => setForm({ ...form, contextWindowSize: event.target.value })}
                 />
                 <Field.HelperText>
-                  焦点句前面最多保留多少句作为上下文，默认
-                  6（含当前句）。仅在开启「对白上下文合并」时生效。
+                  每批一起翻译的焦点句数，默认
+                  500。窗口越大越快，但单次请求更长，标记抽取失败或限流时会回退/重试。仅在开启「对白上下文合并」时生效。
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>最多上文（句）</Field.Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.contextPreviousSize}
+                  disabled={!form.contextAwareTranslate}
+                  onChange={event => setForm({ ...form, contextPreviousSize: event.target.value })}
+                />
+                <Field.HelperText>
+                  每批前面最多携带多少句上文作消歧（不写入输出），默认 100。
                 </Field.HelperText>
               </Field.Root>
 

@@ -5,7 +5,8 @@ import { logger } from '@/server/logger/logger';
 const MAX_CHARS_PER_BATCH = 4500;
 const MAX_ITEMS_PER_BATCH = 40;
 const DEFAULT_BATCH_GAP_MS = 400;
-const DEFAULT_CONTEXT_WINDOW_SIZE = 6;
+const DEFAULT_CONTEXT_WINDOW_SIZE = 500;
+const DEFAULT_CONTEXT_PREVIOUS_SIZE = 100;
 
 /** 单次翻译最大重试次数（不含首次） */
 const MAX_RETRIES = 5;
@@ -21,8 +22,10 @@ export type TranslateTextsOptions = {
   forceBatch?: boolean;
   /** 默认 true：相邻多句合并成段落再翻译 */
   contextAware?: boolean;
-  /** 合并窗口句数，默认 6 */
+  /** 一次窗口焦点句数，默认 500 */
   contextWindowSize?: number;
+  /** 每批最多携带上文句数，默认 100 */
+  contextPreviousSize?: number;
   onProgress?: (done: number, total: number) => void | Promise<void>;
 };
 
@@ -267,35 +270,54 @@ async function translateArray(texts: string[], options: TranslateCallOptions) {
 }
 
 /**
- * 重叠滑动窗口：上文仅作消歧，只采用焦点句译文。
- * 比「非重叠切段」更慢，但指代/语气通常更稳。
+ * 非重叠窗口 + 上文消歧：每批翻译 windowSize 句焦点，前面最多带 previousLimit 句上下文。
+ * 只采用焦点句译文。
  */
-async function translateFocusWithContext(
+async function translateWindowWithContext(
   texts: string[],
-  index: number,
+  start: number,
   windowSize: number,
+  previousLimit: number,
   options: TranslateCallOptions
 ) {
-  const current = texts[index] ?? '';
-  if (!current.trim()) return current;
+  const end = Math.min(texts.length, start + Math.max(1, Math.floor(windowSize)));
+  const focusTexts = texts.slice(start, end);
+  const results = [...focusTexts];
 
-  const prevLimit = Math.max(0, Math.floor(windowSize) - 1);
-  const previous = collectPreviousContext(texts, index, prevLimit);
-  if (previous.length === 0) {
-    return translateOne(current, options);
+  const nonemptyFocusIndexes: number[] = [];
+  focusTexts.forEach((text, i) => {
+    if (text.trim()) nonemptyFocusIndexes.push(i);
+  });
+  if (nonemptyFocusIndexes.length === 0) return results;
+
+  const prevLimit = Math.max(0, Math.floor(previousLimit));
+  const previous = collectPreviousContext(texts, start, prevLimit);
+
+  if (previous.length === 0 && nonemptyFocusIndexes.length === 1) {
+    const only = nonemptyFocusIndexes[0]!;
+    results[only] = await translateOne(focusTexts[only] ?? '', options);
+    return results;
   }
 
-  const blockLines = [...previous, current];
-  const focus = blockLines.length;
+  const blockLines = [...previous, ...focusTexts];
   const marked = buildMarkedBlock(blockLines);
   const translated = await translateOne(marked, options);
-  const extracted = extractMarkedLine(translated, focus);
-  if (extracted != null && extracted.length > 0) {
-    return extracted;
+
+  for (const i of nonemptyFocusIndexes) {
+    const markIndex = previous.length + i + 1;
+    const extracted = extractMarkedLine(translated, markIndex);
+    if (extracted != null && extracted.length > 0) {
+      results[i] = extracted;
+      continue;
+    }
+
+    logger.warn(
+      `焦点句标记抽取失败 (#${start + i + 1})，回退为单句翻译: ${translated.slice(0, 80)}`
+    );
+    results[i] = await translateOne(focusTexts[i] ?? '', options);
   }
 
-  logger.warn(`焦点句标记抽取失败 (#${index + 1})，回退为单句翻译: ${translated.slice(0, 80)}`);
-  return translateOne(current, options);
+  return results;
 }
 
 export async function translateTexts(texts: string[], options: TranslateTextsOptions) {
@@ -305,6 +327,7 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     forceBatch = false,
     contextAware = true,
     contextWindowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
+    contextPreviousSize = DEFAULT_CONTEXT_PREVIOUS_SIZE,
   } = options;
   const from = normalizeSourceLanguage(options.from);
   const batchGapMs =
@@ -326,22 +349,30 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
   let done = 0;
 
   if (contextAware) {
-    for (let i = 0; i < texts.length; i += 1) {
-      const text = texts[i] ?? '';
+    const windowSize = Math.max(1, Math.floor(contextWindowSize));
+    for (let start = 0; start < texts.length; start += windowSize) {
+      const chunkSize = Math.min(windowSize, texts.length - start);
       try {
-        output[i] = await withTranslateRetry(`翻译句子 ${i + 1}/${texts.length}`, () =>
-          translateFocusWithContext(texts, i, contextWindowSize, callOptions)
+        const translated = await withTranslateRetry(
+          `翻译窗口 ${start + 1}-${start + chunkSize}/${texts.length}`,
+          () =>
+            translateWindowWithContext(texts, start, windowSize, contextPreviousSize, callOptions)
         );
+        translated.forEach((text, i) => {
+          output[start + i] = text;
+        });
       } catch (error) {
         const message = errorMessage(error);
-        logger.error(`翻译句子失败 (${i + 1}/${texts.length}): ${message}`);
+        logger.error(
+          `翻译窗口失败 (${start + 1}-${start + chunkSize}/${texts.length}): ${message}`
+        );
         throw error;
       }
 
-      done += 1;
+      done += chunkSize;
       await onProgress?.(done, texts.length);
 
-      if (i < texts.length - 1 && batchGapMs > 0 && text.trim()) {
+      if (start + windowSize < texts.length && batchGapMs > 0) {
         await sleep(batchGapMs);
       }
     }

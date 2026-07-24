@@ -50,8 +50,10 @@ export type AppSettings = {
   batchGapMs: number;
   /** 对白上下文合并（滑动窗口/段落） */
   contextAwareTranslate: boolean;
-  /** 上下文窗口大小（合并句数） */
+  /** 一次翻译窗口大小（每批焦点句数） */
   contextWindowSize: number;
+  /** 每批最多携带的上文句数 */
+  contextPreviousSize: number;
   /** 是否强制使用 Google batch 端点 */
   forceBatch: boolean;
   googleApiKey: string;
