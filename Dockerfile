@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-bookworm-slim AS base
+# better-sqlite3@13 的 linux-arm64 预编译包需要 GLIBC >= 2.38；
+# Bookworm 只有 2.36，会在 ARM 上 dlopen 失败。Trixie 满足该要求。
+FROM node:22-trixie-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ENV HUSKY=0
@@ -13,10 +15,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# 预编译的 better-sqlite3 可能要求比 Bookworm（glibc 2.36）更新的 GLIBC（如 2.38），
-# 在多架构/ARM 上会 dlopen 失败；强制对本镜像的 glibc 重新编译。
-RUN pnpm install --frozen-lockfile \
-  && pnpm rebuild better-sqlite3
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -24,8 +23,7 @@ ENV DATABASE_URL="file:./data/app.db"
 RUN mkdir -p data \
   && pnpm exec prisma generate \
   && pnpm build \
-  && pnpm prune --prod --ignore-scripts \
-  && pnpm rebuild better-sqlite3
+  && pnpm prune --prod --ignore-scripts
 
 FROM base AS runner
 ENV NODE_ENV=production
