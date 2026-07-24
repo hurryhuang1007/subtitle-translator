@@ -226,7 +226,7 @@ async function runScan() {
     });
 
     logger.info(
-      `手动扫描完成: dirsVisited=${getScanProgress().dirsVisited} files=${files.length} enqueued=${enqueued} skipped=${skipped} unchanged=${unchanged}`
+      `目录扫描完成: dirsVisited=${getScanProgress().dirsVisited} files=${files.length} enqueued=${enqueued} skipped=${skipped} unchanged=${unchanged}`
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -236,7 +236,7 @@ async function runScan() {
       error: message,
       finishedAt: new Date().toISOString(),
     });
-    logger.error(`手动扫描失败: ${message}`);
+    logger.error(`目录扫描失败: ${message}`);
   } finally {
     getScanState().running = false;
   }
@@ -251,5 +251,5 @@ export function startScanWatchDirs(): ScanProgress {
 
   state.running = true;
   void runScan();
-  return state.progress;
+  return getScanProgress();
 }

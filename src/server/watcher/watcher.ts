@@ -7,6 +7,7 @@ import { getSettings } from '@/server/config/settings';
 import { logger } from '@/server/logger/logger';
 import { patchRuntimeStatus } from '@/server/status/runtimeStatus';
 import { ingestSubtitleFile } from '@/server/watcher/ingest';
+import { startScanWatchDirs } from '@/server/watcher/scan';
 
 const IGNORED_EXTS = new Set([
   '.mkv',
@@ -94,9 +95,12 @@ export async function startWatcher() {
     return;
   }
 
+  // 初始全量入库不依赖 chokidar 的 add 风暴（上千文件并发 ingest 会漏）；
+  // 改为 ready 后走顺序后台扫描；watcher 只负责后续增量变更。
   const watcher = chokidar.watch(watchDirs, {
-    ignoreInitial: false,
+    ignoreInitial: true,
     persistent: true,
+    followSymlinks: true,
     awaitWriteFinish: {
       stabilityThreshold: Math.max(200, Math.floor(settings.debounceMs / 2)),
       pollInterval: 100,
@@ -117,6 +121,10 @@ export async function startWatcher() {
     })
     .on('ready', () => {
       logger.info(`watcher 已启动: ${watchDirs.join(', ')}`);
+      const progress = startScanWatchDirs();
+      if (progress.status === 'running') {
+        logger.info('已开始启动后全量扫描');
+      }
     });
 
   state.watcher = watcher;

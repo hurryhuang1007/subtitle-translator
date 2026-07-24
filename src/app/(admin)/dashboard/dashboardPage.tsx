@@ -151,7 +151,7 @@ export default function DashboardPage() {
       await scanWatchDirs();
       await refresh();
       toaster.success({
-        title: '已开始扫描',
+        title: '已开始手动扫描',
         description: '正在后台深度扫描，进度会显示在 Watching 卡片上',
       });
     } catch (err) {
@@ -185,18 +185,17 @@ export default function DashboardPage() {
       label: 'Watching',
       value: data ? (watching ? 'ON' : 'OFF') : '-',
       hint: watchingHint(),
-      action:
-        data && !watching ? (
-          <Button
-            size="sm"
-            variant="outline"
-            loading={scanRunning}
-            disabled={scanRunning}
-            onClick={() => void handleScan()}
-          >
-            {scanRunning ? '扫描中' : '开始扫描'}
-          </Button>
-        ) : undefined,
+      action: data ? (
+        <Button
+          size="sm"
+          variant="outline"
+          loading={scanRunning}
+          disabled={scanRunning}
+          onClick={() => void handleScan()}
+        >
+          {scanRunning ? '扫描中' : '手动扫描'}
+        </Button>
+      ) : undefined,
     },
     { label: 'Running', value: data?.running ?? '-', hint: '正在翻译' },
     { label: 'Waiting', value: data?.waiting ?? '-', hint: '队列等待' },
