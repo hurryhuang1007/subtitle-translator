@@ -27,6 +27,8 @@ export async function bootstrapServer() {
 
   const settings = await getSettings();
   queue.setConcurrency(settings.queueConcurrency);
+  // 先设置暂停状态，再 hydrate，避免启动时立刻开跑队列
+  queue.setPaused(!settings.translationEnabled);
 
   const pendingTasks = await prisma.task.findMany({
     where: { status: TaskStatus.PENDING },

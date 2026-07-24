@@ -9,6 +9,8 @@ class MemoryQueue {
   private concurrency: number;
   private handler: QueueJobHandler | null = null;
   private draining = false;
+  /** true 时只入队、不执行（对应「开始翻译」关闭） */
+  private paused = true;
 
   constructor(concurrency = 1) {
     this.concurrency = Math.max(1, concurrency);
@@ -28,6 +30,17 @@ class MemoryQueue {
 
   getConcurrency() {
     return this.concurrency;
+  }
+
+  setPaused(paused: boolean) {
+    this.paused = paused;
+    if (!paused) {
+      void this.drain();
+    }
+  }
+
+  isPaused() {
+    return this.paused;
   }
 
   size() {
@@ -66,14 +79,14 @@ class MemoryQueue {
   }
 
   private async drain() {
-    if (!this.handler || this.draining) {
+    if (!this.handler || this.draining || this.paused) {
       return;
     }
     this.draining = true;
 
     try {
       while (this.active < this.concurrency && this.pending.length > 0) {
-        if (!this.handler) {
+        if (!this.handler || this.paused) {
           break;
         }
 

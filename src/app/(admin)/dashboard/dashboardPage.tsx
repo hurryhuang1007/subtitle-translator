@@ -1,9 +1,23 @@
 'use client';
 
-import { Badge, Box, Card, Flex, Heading, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import {
+  Badge,
+  Box,
+  Card,
+  Flex,
+  Heading,
+  HStack,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Text,
+} from '@chakra-ui/react';
 import { useRequest } from 'ahooks';
+import { useState } from 'react';
 
 import { formatTaskTime, taskStatusColor } from '@/com/taskFormat';
+import { toaster } from '@/com/ui/toaster';
+import { updateSettings } from '@/service/settings';
 import { fetchStatus } from '@/service/tasks';
 import type { TaskItem } from '@/service/types';
 
@@ -70,10 +84,32 @@ function RecentTaskRow({ task }: { task: TaskItem }) {
 }
 
 export default function DashboardPage() {
-  const { data, loading, error } = useRequest(fetchStatus, {
+  const [toggling, setToggling] = useState(false);
+  const { data, loading, error, refresh } = useRequest(fetchStatus, {
     pollingInterval: 3000,
     pollingWhenHidden: false,
   });
+
+  const translationOn = data?.translationEnabled ?? false;
+
+  async function handleTranslationToggle(checked: boolean) {
+    try {
+      setToggling(true);
+      await updateSettings({ translationEnabled: checked });
+      await refresh();
+      toaster.success({
+        title: checked ? '已开始翻译' : '已暂停翻译',
+        description: checked ? '队列开始消费等待中的任务' : '新文件仍会入队，但不会开始执行',
+      });
+    } catch (err) {
+      toaster.error({
+        title: '切换失败',
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setToggling(false);
+    }
+  }
 
   const metrics = [
     {
@@ -96,9 +132,28 @@ export default function DashboardPage() {
     <Stack gap={6}>
       <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
         <Heading size="lg">Dashboard</Heading>
-        <Text color="fg.muted" fontSize="sm">
-          {loading && !data ? '加载中…' : '每 3 秒自动刷新'}
-        </Text>
+        <HStack gap={4}>
+          <HStack gap={3}>
+            <Text fontSize="sm" fontWeight="medium">
+              开始翻译
+            </Text>
+            <Switch.Root
+              checked={translationOn}
+              disabled={!data || toggling}
+              onCheckedChange={details => {
+                void handleTranslationToggle(details.checked);
+              }}
+            >
+              <Switch.HiddenInput />
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Root>
+          </HStack>
+          <Text color="fg.muted" fontSize="sm">
+            {loading && !data ? '加载中…' : '每 3 秒自动刷新'}
+          </Text>
+        </HStack>
       </Flex>
 
       {error ? (
@@ -122,7 +177,7 @@ export default function DashboardPage() {
         <Card.Body pt={0}>
           {!data?.recentTasks?.length ? (
             <Text color="fg.muted" py={4}>
-              暂无任务。把字幕文件放到监听目录后会出现在这里。
+              暂无任务。把字幕放到监听目录后会入队；开启「开始翻译」后才会执行。
             </Text>
           ) : (
             <Stack gap={0}>

@@ -11,6 +11,11 @@ export type AppSettings = {
   targetLanguage: string;
   outputSuffixTemplate: string;
   autoStart: boolean;
+  /**
+   * 是否开始执行翻译队列。
+   * 关闭时 watcher 仍可入队，但不会消费队列。
+   */
+  translationEnabled: boolean;
   skipIfExists: boolean;
   debounceMs: number;
   /** 任务队列并发数 */
@@ -65,6 +70,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   targetLanguage: 'zh-CN',
   outputSuffixTemplate: '.{lang}',
   autoStart: true,
+  translationEnabled: false,
   skipIfExists: true,
   debounceMs: 800,
   queueConcurrency: 1,
@@ -134,9 +140,18 @@ export async function updateSettings(input: Partial<AppSettings>): Promise<AppSe
     await restartWatcher();
   }
 
-  if (current.queueConcurrency !== merged.queueConcurrency) {
+  if (
+    current.queueConcurrency !== merged.queueConcurrency ||
+    current.translationEnabled !== merged.translationEnabled
+  ) {
     const { getMemoryQueue } = await import('@/server/queue/memoryQueue');
-    getMemoryQueue().setConcurrency(merged.queueConcurrency);
+    const queue = getMemoryQueue();
+    if (current.queueConcurrency !== merged.queueConcurrency) {
+      queue.setConcurrency(merged.queueConcurrency);
+    }
+    if (current.translationEnabled !== merged.translationEnabled) {
+      queue.setPaused(!merged.translationEnabled);
+    }
   }
 
   return merged;

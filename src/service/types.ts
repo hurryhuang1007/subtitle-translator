@@ -32,6 +32,8 @@ export type MemoryUsage = {
 
 export type StatusResponse = {
   watching: boolean;
+  /** 是否开始执行翻译队列（与目录监听独立） */
+  translationEnabled: boolean;
   running: number;
   waiting: number;
   successToday: number;
@@ -49,6 +51,8 @@ export type AppSettings = {
   targetLanguage: string;
   outputSuffixTemplate: string;
   autoStart: boolean;
+  /** 是否开始执行翻译队列（关闭时仍可入队） */
+  translationEnabled: boolean;
   skipIfExists: boolean;
   debounceMs: number;
   /** 任务队列并发数 */

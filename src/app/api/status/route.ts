@@ -1,4 +1,5 @@
 import { bootstrapServer } from '@/server/bootstrap';
+import { getSettings } from '@/server/config/settings';
 import { prisma } from '@/server/db/client';
 import { getRuntimeStatus } from '@/server/status/runtimeStatus';
 import { apiOk } from '@/server/util/apiResponse';
@@ -18,7 +19,8 @@ export async function GET() {
   const runtime = getRuntimeStatus();
   const { start, end } = getTodayRange();
 
-  const [successToday, failedToday, recentTasks] = await Promise.all([
+  const [settings, successToday, failedToday, recentTasks] = await Promise.all([
+    getSettings(),
     prisma.task.count({
       where: {
         status: 'SUCCESS',
@@ -39,6 +41,7 @@ export async function GET() {
 
   return apiOk({
     watching: runtime.watching,
+    translationEnabled: settings.translationEnabled,
     running: runtime.runningTasks,
     waiting: runtime.waitingTasks,
     successToday,

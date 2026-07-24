@@ -108,6 +108,10 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.autoStart = Boolean(body.autoStart);
   }
 
+  if (body.translationEnabled !== undefined) {
+    next.translationEnabled = Boolean(body.translationEnabled);
+  }
+
   if (body.skipIfExists !== undefined) {
     next.skipIfExists = Boolean(body.skipIfExists);
   }
