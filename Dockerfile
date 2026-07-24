@@ -13,7 +13,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# 预编译的 better-sqlite3 可能要求比 Bookworm（glibc 2.36）更新的 GLIBC（如 2.38），
+# 在多架构/ARM 上会 dlopen 失败；强制对本镜像的 glibc 重新编译。
+RUN pnpm install --frozen-lockfile \
+  && pnpm rebuild better-sqlite3
 
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -21,7 +24,8 @@ ENV DATABASE_URL="file:./data/app.db"
 RUN mkdir -p data \
   && pnpm exec prisma generate \
   && pnpm build \
-  && pnpm prune --prod --ignore-scripts
+  && pnpm prune --prod --ignore-scripts \
+  && pnpm rebuild better-sqlite3
 
 FROM base AS runner
 ENV NODE_ENV=production
