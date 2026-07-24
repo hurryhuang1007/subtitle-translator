@@ -1,19 +1,58 @@
 # Subtitle Translator
 
-基于 Next.js App Router 的字幕自动翻译服务，UI 使用 [Chakra UI](https://chakra-ui.com/) v3。
+类似 Sonarr / Radarr 的**字幕自动翻译后台服务**：长期监听指定目录，发现新字幕后自动翻译并写出目标文件，同时提供现代化 Web 管理界面查看状态、任务、配置与日志。
 
-镜像会通过 GitHub Actions 自动构建并推送到 GHCR：
+|                                    |                                                                                                                                                                                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Dashboard](readme/dashboard.png) | **关于截图里的 Memory**：数值看起来很高，是因为截图时跑的是**本地开发环境**（Next.js + Webpack 热更新会额外占很多内存），不是生产 Docker 部署的常态。正式用 `docker compose` / GHCR 镜像跑起来后，占用会低很多。 |
 
-`ghcr.io/hurryhuang1007/subtitle-translator`
+## 它解决什么问题
+
+看剧、整理片库时，字幕经常只有英文字幕。本服务把「丢进目录 → 自动翻译 → 生成带语言后缀的文件」变成无人值守流程，适合挂在 NAS / 服务器上长期跑。
+
+典型结果：
+
+```text
+Frieren.ass      →  Frieren.zh.ass
+movie.eng.srt    →  movie.eng.zh.srt
+```
+
+默认不会覆盖原文件；若目标已存在，可配置为跳过。
+
+## 功能概览
+
+- **目录监听**：chokidar 监听配置目录，文件写入稳定后自动入队
+- **字幕格式**：支持 `.srt` / `.ass` / `.ssa`，可用正则进一步过滤文件名
+- **批量翻译**：按句合并为批次请求 Google Translate，带限流重试与可配置并发/间隔
+- **任务管理**：查看详情、单条 Retry、一键重试全部失败任务
+- **Web 后台**：Dashboard / Tasks / Settings / Logs，深色主题
+
+| Dashboard                          | Tasks                      |
+| ---------------------------------- | -------------------------- |
+| ![Dashboard](readme/dashboard.png) | ![Tasks](readme/tasks.png) |
+
+| Settings                         | Logs                     |
+| -------------------------------- | ------------------------ |
+| ![Settings](readme/settings.png) | ![Logs](readme/logs.png) |
+
+### 管理界面
+
+- **Dashboard**：监听状态、运行/等待队列、今日成功失败、内存占用、最近翻译
+- **Tasks**：按文件名/路径与状态筛选，详情 / Retry / Delete，支持「重试全部失败」
+- **Settings**：监听目录、文件名正则、目标语言、输出后缀、Debounce、队列并发、批次间隔等
+- **Logs**：实时日志流，按等级过滤
 
 ## 技术栈
 
 - Next.js (App Router) + TypeScript
-- Tailwind CSS + CSS Modules (SCSS)
-- Chakra UI v3
-- Prisma + SQLite
-- chokidar / google-translate-api-x
-- pnpm + ESLint + Prettier + Husky + commitlint
+- Chakra UI v3 + Tailwind CSS
+- Prisma + SQLite（better-sqlite3）
+- chokidar（目录监听）
+- google-translate-api-x（免费 Google Translate）
+- 内存任务队列（可配置并发）
+- Docker / GHCR 自动构建
+
+镜像地址：`ghcr.io/hurryhuang1007/subtitle-translator`
 
 ## 本地开发
 
@@ -26,7 +65,7 @@ pnpm dev
 
 打开 [http://localhost:3000](http://localhost:3000)。
 
-默认监听目录为项目下的 `media/`。
+默认监听目录为项目下的 `media/`，放入字幕文件即可触发翻译。
 
 ## 部署
 
@@ -127,6 +166,8 @@ docker compose down
 | `store/`   | 全局 MobX store    |
 | `util/`    | 工具函数           |
 
+截图资源放在 `readme/`。
+
 ## 常用脚本
 
 ```bash
@@ -138,3 +179,7 @@ pnpm db:deploy       # 生产迁移
 pnpm test:parser     # 解析器测试
 pnpm smoke:translate # 翻译冒烟测试
 ```
+
+## 说明
+
+当前翻译走免费 Google Translate 网页接口，无官方 SLA，可能遇到限流；可通过调低队列并发、增大批次间隔，以及内置重试缓解。正式大规模使用建议后续接入官方 Cloud Translation 等 Provider。
