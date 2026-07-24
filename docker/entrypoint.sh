@@ -3,6 +3,6 @@ set -eu
 
 mkdir -p /app/data /app/logs /media
 
-pnpm exec prisma migrate deploy
+./prisma-cli/node_modules/.bin/prisma migrate deploy
 
-exec pnpm start
+exec node server.js
