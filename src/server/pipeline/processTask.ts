@@ -66,6 +66,7 @@ export async function processTask(taskId: string) {
         : await translateTexts(sourceTexts, {
             to: settings.targetLanguage,
             from: settings.sourceLanguage,
+            apiKey: settings.googleApiKey,
             batchGapMs: settings.batchGapMs,
             forceBatch: settings.forceBatch,
             contextAware: settings.contextAwareTranslate,

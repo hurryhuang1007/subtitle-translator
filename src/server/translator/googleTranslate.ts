@@ -1,9 +1,14 @@
 import translate from 'google-translate-api-x';
 
 import { logger } from '@/server/logger/logger';
+import {
+  CLOUD_MAX_CHARS_PER_BATCH,
+  CLOUD_MAX_ITEMS_PER_BATCH,
+  cloudTranslateTexts,
+} from '@/server/translator/cloudTranslate';
 
-const MAX_CHARS_PER_BATCH = 4500;
-const MAX_ITEMS_PER_BATCH = 40;
+const FREE_MAX_CHARS_PER_BATCH = 4500;
+const FREE_MAX_ITEMS_PER_BATCH = 40;
 const DEFAULT_BATCH_GAP_MS = 400;
 const DEFAULT_CONTEXT_WINDOW_SIZE = 500;
 const DEFAULT_CONTEXT_PREVIOUS_SIZE = 100;
@@ -17,8 +22,10 @@ export type TranslateTextsOptions = {
   to: string;
   /** auto / 空 = 自动检测 */
   from?: string;
+  /** Cloud Translation API Key；空则走免费接口 */
+  apiKey?: string;
   batchGapMs?: number;
-  /** 默认 false：走更准确的 single 端点 */
+  /** 默认 false：免费接口走更准确的 single 端点；Cloud 下批量质量相同，仍可用于控制请求形态 */
   forceBatch?: boolean;
   /** 默认 true：相邻多句合并成段落再翻译 */
   contextAware?: boolean;
@@ -155,15 +162,20 @@ function normalizeSourceLanguage(from?: string) {
   return value;
 }
 
-function buildBatches(texts: string[]) {
+function normalizeApiKey(apiKey?: string) {
+  const value = apiKey?.trim();
+  return value || undefined;
+}
+
+function buildBatches(texts: string[], maxItems: number, maxChars: number) {
   const batches: string[][] = [];
   let current: string[] = [];
   let currentChars = 0;
 
   for (const text of texts) {
     const size = text.length || 1;
-    const exceedItems = current.length >= MAX_ITEMS_PER_BATCH;
-    const exceedChars = current.length > 0 && currentChars + size > MAX_CHARS_PER_BATCH;
+    const exceedItems = current.length >= maxItems;
+    const exceedChars = current.length > 0 && currentChars + size > maxChars;
 
     if (exceedItems || exceedChars) {
       batches.push(current);
@@ -212,10 +224,20 @@ type TranslateCallOptions = {
   to: string;
   from?: string;
   forceBatch: boolean;
+  apiKey?: string;
 };
 
 async function translateOne(text: string, options: TranslateCallOptions) {
   if (!text.trim()) return text;
+
+  if (options.apiKey) {
+    const [translated] = await cloudTranslateTexts([text], {
+      apiKey: options.apiKey,
+      to: options.to,
+      from: options.from,
+    });
+    return translated ?? text;
+  }
 
   const response = await translate(text, {
     to: options.to,
@@ -242,6 +264,39 @@ async function translateArray(texts: string[], options: TranslateCallOptions) {
 
   const results = [...texts];
   if (payload.length === 0) return results;
+
+  if (options.apiKey) {
+    // Cloud：未强制 batch 时仍可逐条，便于与免费路径行为一致；forceBatch 时整批提交
+    if (!options.forceBatch) {
+      for (let i = 0; i < payload.length; i += 1) {
+        const originalIndex = indexMap[i];
+        if (originalIndex == null) continue;
+        results[originalIndex] = await translateOne(payload[i] ?? '', options);
+      }
+      return results;
+    }
+
+    const cloudBatches = buildBatches(
+      payload,
+      CLOUD_MAX_ITEMS_PER_BATCH,
+      CLOUD_MAX_CHARS_PER_BATCH
+    );
+    let payloadCursor = 0;
+    for (const batch of cloudBatches) {
+      const translated = await cloudTranslateTexts(batch, {
+        apiKey: options.apiKey,
+        to: options.to,
+        from: options.from,
+      });
+      translated.forEach((text, i) => {
+        const originalIndex = indexMap[payloadCursor + i];
+        if (originalIndex == null) return;
+        results[originalIndex] = text;
+      });
+      payloadCursor += batch.length;
+    }
+    return results;
+  }
 
   // 数组输入只会走 batch 端点；forceBatch=false 时改为逐条 single
   if (!options.forceBatch) {
@@ -330,6 +385,7 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     contextPreviousSize = DEFAULT_CONTEXT_PREVIOUS_SIZE,
   } = options;
   const from = normalizeSourceLanguage(options.from);
+  const apiKey = normalizeApiKey(options.apiKey);
   const batchGapMs =
     typeof options.batchGapMs === 'number' && Number.isFinite(options.batchGapMs)
       ? Math.max(0, Math.round(options.batchGapMs))
@@ -339,10 +395,17 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     return [];
   }
 
+  logger.info(
+    apiKey
+      ? `翻译 Provider: Google Cloud Translation（已配置 API Key） cues=${texts.length}`
+      : `翻译 Provider: 免费 Google Translate 接口 cues=${texts.length}`
+  );
+
   const callOptions: TranslateCallOptions = {
     to,
     from,
     forceBatch,
+    apiKey,
   };
 
   const output: string[] = new Array(texts.length);
@@ -402,7 +465,9 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     return output;
   }
 
-  const batches = buildBatches(texts);
+  const maxItems = apiKey ? CLOUD_MAX_ITEMS_PER_BATCH : FREE_MAX_ITEMS_PER_BATCH;
+  const maxChars = apiKey ? CLOUD_MAX_CHARS_PER_BATCH : FREE_MAX_CHARS_PER_BATCH;
+  const batches = buildBatches(texts, maxItems, maxChars);
   let cursor = 0;
   for (let i = 0; i < batches.length; i += 1) {
     const batch = batches[i] ?? [];

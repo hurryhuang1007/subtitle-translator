@@ -31,6 +31,7 @@ export type AppSettings = {
    * false 时走更准确的 single 端点，但更容易限流。
    */
   forceBatch: boolean;
+  /** Google Cloud Translation API Key；空则走免费接口 */
   googleApiKey: string;
 };
 

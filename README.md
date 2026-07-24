@@ -48,7 +48,7 @@ movie.eng.srt    →  movie.eng.zh.srt
 - Chakra UI v3 + Tailwind CSS
 - Prisma + SQLite（better-sqlite3）
 - chokidar（目录监听）
-- google-translate-api-x（免费 Google Translate）
+- google-translate-api-x（免费 Google Translate；配置 API Key 后改走 Cloud Translation v2）
 - 内存任务队列（可配置并发）
 - Docker / GHCR 自动构建
 
@@ -182,4 +182,4 @@ pnpm smoke:translate # 翻译冒烟测试
 
 ## 说明
 
-当前翻译走免费 Google Translate 网页接口，无官方 SLA，可能遇到限流；可通过调低队列并发、增大批次间隔，以及内置重试缓解。正式大规模使用建议后续接入官方 Cloud Translation 等 Provider。
+翻译默认走免费 Google Translate 网页接口（无官方 SLA，可能限流）。在 Settings 填写 **Google Cloud Translation API Key** 后，自动切换为官方 Cloud Translation v2；Key 留空则仍用免费接口。可通过调低队列并发、增大批次间隔，以及内置重试缓解限流。

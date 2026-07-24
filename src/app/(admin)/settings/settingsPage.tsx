@@ -403,15 +403,16 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
-                <Field.Label>Google Translate API Key（可选）</Field.Label>
+                <Field.Label>Google Cloud Translation API Key（可选）</Field.Label>
                 <Input
                   type="password"
                   value={form.googleApiKey}
                   onChange={event => setForm({ ...form, googleApiKey: event.target.value })}
-                  placeholder="当前免费接口可不填"
+                  placeholder="留空则使用免费接口"
                 />
                 <Field.HelperText>
-                  MVP 使用免费接口，无需 Key；此字段先保留便于后续扩展。
+                  填写后走官方 Cloud Translation v2；留空继续用免费网页接口。需在 Google Cloud 启用
+                  Cloud Translation API 并创建 API Key。
                 </Field.HelperText>
               </Field.Root>
             </Stack>
