@@ -18,13 +18,13 @@ export type AppSettings = {
   /** 翻译批次间隔（毫秒） */
   batchGapMs: number;
   /**
-   * 对白上下文合并（滑动窗口/段落）。
+   * 机器翻译：对白上下文合并。
    * 开启后会把相邻多句合并成一段再翻译，通常更通顺。
    */
   contextAwareTranslate: boolean;
-  /** 一次翻译窗口大小（每批焦点句数），仅 contextAwareTranslate 开启时生效 */
+  /** 机器翻译：一次窗口大小（每批焦点句数） */
   contextWindowSize: number;
-  /** 每批最多携带的上文句数（仅作消歧，不输出），仅 contextAwareTranslate 开启时生效 */
+  /** 机器翻译：每批最多携带的上文句数 */
   contextPreviousSize: number;
   /**
    * 是否强制使用 Google batch 端点。
@@ -33,6 +33,22 @@ export type AppSettings = {
   forceBatch: boolean;
   /** Google Cloud Translation API Key；空则走免费接口 */
   googleApiKey: string;
+  /** 是否启用 OpenAI 兼容 LLM 翻译（优先于机器翻译） */
+  llmEnabled: boolean;
+  /** OpenAI 兼容 API Base URL，例如 https://api.openai.com/v1 */
+  llmBaseUrl: string;
+  /** LLM API Key */
+  llmApiKey: string;
+  /** 模型名，例如 gpt-4o-mini */
+  llmModel: string;
+  /** LLM 采样温度 */
+  llmTemperature: number;
+  /** LLM：一次窗口大小（每批焦点句数） */
+  llmContextWindowSize: number;
+  /** LLM：每批最多携带的上文句数 */
+  llmContextPreviousSize: number;
+  /** LLM 不可用时是否回退到机器翻译 */
+  llmFallbackToMachine: boolean;
 };
 
 function defaultWatchDir() {
@@ -58,6 +74,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   contextPreviousSize: 100,
   forceBatch: false,
   googleApiKey: '',
+  llmEnabled: false,
+  llmBaseUrl: 'https://api.openai.com/v1',
+  llmApiKey: '',
+  llmModel: '',
+  llmTemperature: 0.2,
+  // 字幕单句通常很短；按常见 128k 上下文，约 800 焦点 + 300 上文仍有较大余量
+  llmContextWindowSize: 800,
+  llmContextPreviousSize: 300,
+  llmFallbackToMachine: true,
 };
 
 const SETTINGS_KEY = 'appSettings';

@@ -15,7 +15,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { useRequest } from 'ahooks';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { toaster } from '@/com/ui/toaster';
 import { fetchSettings, updateSettings } from '@/service/settings';
@@ -52,6 +52,14 @@ type FormState = {
   autoStart: boolean;
   skipIfExists: boolean;
   googleApiKey: string;
+  llmEnabled: boolean;
+  llmBaseUrl: string;
+  llmApiKey: string;
+  llmModel: string;
+  llmTemperature: string;
+  llmContextWindowSize: string;
+  llmContextPreviousSize: string;
+  llmFallbackToMachine: boolean;
 };
 
 function resolveSourceLanguageSelect(value: string) {
@@ -81,6 +89,14 @@ function toFormState(settings: AppSettings): FormState {
     autoStart: settings.autoStart,
     skipIfExists: settings.skipIfExists,
     googleApiKey: settings.googleApiKey,
+    llmEnabled: settings.llmEnabled,
+    llmBaseUrl: settings.llmBaseUrl,
+    llmApiKey: settings.llmApiKey,
+    llmModel: settings.llmModel,
+    llmTemperature: String(settings.llmTemperature),
+    llmContextWindowSize: String(settings.llmContextWindowSize),
+    llmContextPreviousSize: String(settings.llmContextPreviousSize),
+    llmFallbackToMachine: settings.llmFallbackToMachine,
   };
 }
 
@@ -109,7 +125,41 @@ function toPayload(form: FormState): Partial<AppSettings> {
     autoStart: form.autoStart,
     skipIfExists: form.skipIfExists,
     googleApiKey: form.googleApiKey,
+    llmEnabled: form.llmEnabled,
+    llmBaseUrl: form.llmBaseUrl.trim(),
+    llmApiKey: form.llmApiKey,
+    llmModel: form.llmModel.trim(),
+    llmTemperature: Number(form.llmTemperature),
+    llmContextWindowSize: Number(form.llmContextWindowSize),
+    llmContextPreviousSize: Number(form.llmContextPreviousSize),
+    llmFallbackToMachine: form.llmFallbackToMachine,
   };
+}
+
+function SettingsCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card.Root>
+      <Card.Header pb={2}>
+        <Heading size="md">{title}</Heading>
+        {description ? (
+          <Text color="fg.muted" fontSize="sm" mt={1}>
+            {description}
+          </Text>
+        ) : null}
+      </Card.Header>
+      <Card.Body pt={2}>
+        <Stack gap={5}>{children}</Stack>
+      </Card.Body>
+    </Card.Root>
+  );
 }
 
 export default function SettingsPage() {
@@ -121,6 +171,7 @@ export default function SettingsPage() {
     setForm(toFormState(settings));
     return settings;
   });
+
   async function handleSave() {
     if (!form) return;
 
@@ -162,263 +213,385 @@ export default function SettingsPage() {
         </Card.Root>
       ) : null}
 
-      <Card.Root>
-        <Card.Body>
-          {!form ? (
+      {!form ? (
+        <Card.Root>
+          <Card.Body>
             <Text color="fg.muted">{loading ? '加载中…' : '暂无配置'}</Text>
-          ) : (
-            <Stack gap={5}>
-              <Field.Root>
-                <Field.Label>监听目录（每行一个）</Field.Label>
-                <Textarea
-                  rows={4}
-                  value={form.watchDirsText}
-                  onChange={event => setForm({ ...form, watchDirsText: event.target.value })}
-                  placeholder={'/media\n/Users/you/Movies'}
-                />
-                <Field.HelperText>保存后若开启自动启动，会自动重启 watcher。</Field.HelperText>
-              </Field.Root>
+          </Card.Body>
+        </Card.Root>
+      ) : (
+        <>
+          <SettingsCard title="基础设置" description="监听目录、语言、输出命名与队列相关选项。">
+            <Field.Root>
+              <Field.Label>监听目录（每行一个）</Field.Label>
+              <Textarea
+                rows={4}
+                value={form.watchDirsText}
+                onChange={event => setForm({ ...form, watchDirsText: event.target.value })}
+                placeholder={'/media\n/Users/you/Movies'}
+              />
+              <Field.HelperText>保存后若开启自动启动，会自动重启 watcher。</Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>字幕文件名正则</Field.Label>
+            <Field.Root>
+              <Field.Label>字幕文件名正则</Field.Label>
+              <Input
+                value={form.filenamePattern}
+                onChange={event => setForm({ ...form, filenamePattern: event.target.value })}
+                placeholder={String.raw`.*\.(srt|ass|ssa)$`}
+                fontFamily="mono"
+              />
+              <Field.HelperText>
+                对文件名（basename）做不区分大小写匹配；留空表示匹配全部
+                .srt/.ass/.ssa。例如只吃英语字幕：
+                {String.raw`.*\.(eng|en)\.(srt|ass|ssa)$`}
+              </Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>原语言</Field.Label>
+              <NativeSelect.Root>
+                <NativeSelect.Field
+                  value={form.sourceLanguage}
+                  onChange={event =>
+                    setForm({
+                      ...form,
+                      sourceLanguage: event.target.value,
+                    })
+                  }
+                >
+                  {SOURCE_LANGUAGE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+              </NativeSelect.Root>
+              {form.sourceLanguage === 'custom' ? (
                 <Input
-                  value={form.filenamePattern}
-                  onChange={event => setForm({ ...form, filenamePattern: event.target.value })}
-                  placeholder={String.raw`.*\.(srt|ass|ssa)$`}
+                  mt={2}
+                  value={form.sourceLanguageCustom}
+                  onChange={event => setForm({ ...form, sourceLanguageCustom: event.target.value })}
+                  placeholder="例如 ja / en / pt"
                   fontFamily="mono"
                 />
-                <Field.HelperText>
-                  对文件名（basename）做不区分大小写匹配；留空表示匹配全部
-                  .srt/.ass/.ssa。例如只吃英语字幕：
-                  {String.raw`.*\.(eng|en)\.(srt|ass|ssa)$`}
-                </Field.HelperText>
-              </Field.Root>
+              ) : null}
+              <Field.HelperText>
+                默认自动检测。日文字幕建议选「日语」，可减少误判。
+              </Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>原语言</Field.Label>
-                <NativeSelect.Root>
-                  <NativeSelect.Field
-                    value={form.sourceLanguage}
-                    onChange={event =>
-                      setForm({
-                        ...form,
-                        sourceLanguage: event.target.value,
-                      })
-                    }
-                  >
-                    {SOURCE_LANGUAGE_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-                {form.sourceLanguage === 'custom' ? (
-                  <Input
-                    mt={2}
-                    value={form.sourceLanguageCustom}
-                    onChange={event =>
-                      setForm({ ...form, sourceLanguageCustom: event.target.value })
-                    }
-                    placeholder="例如 ja / en / pt"
-                    fontFamily="mono"
-                  />
-                ) : null}
-                <Field.HelperText>
-                  默认自动检测。日文字幕建议选「日语」，可减少误判。
-                </Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>目标语言</Field.Label>
+              <Input
+                value={form.targetLanguage}
+                onChange={event => setForm({ ...form, targetLanguage: event.target.value })}
+                placeholder="zh-CN"
+              />
+              <Field.HelperText>例如 zh-CN、en、ja。</Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>目标语言</Field.Label>
-                <Input
-                  value={form.targetLanguage}
-                  onChange={event => setForm({ ...form, targetLanguage: event.target.value })}
-                  placeholder="zh-CN"
-                />
-                <Field.HelperText>例如 zh-CN、en、ja。</Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>输出后缀模板</Field.Label>
+              <Input
+                value={form.outputSuffixTemplate}
+                onChange={event => setForm({ ...form, outputSuffixTemplate: event.target.value })}
+                placeholder=".{lang}"
+              />
+              <Field.HelperText>
+                {'`{lang}` 会被替换为目标语言短码，例如 Frieren.ass → Frieren.zh.ass。'}
+              </Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>输出后缀模板</Field.Label>
-                <Input
-                  value={form.outputSuffixTemplate}
-                  onChange={event => setForm({ ...form, outputSuffixTemplate: event.target.value })}
-                  placeholder=".{lang}"
-                />
-                <Field.HelperText>
-                  {'`{lang}` 会被替换为目标语言短码，例如 Frieren.ass → Frieren.zh.ass。'}
-                </Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>Debounce（毫秒）</Field.Label>
+              <Input
+                type="number"
+                min={100}
+                value={form.debounceMs}
+                onChange={event => setForm({ ...form, debounceMs: event.target.value })}
+              />
+              <Field.HelperText>同一文件连续变更时的合并等待时间，建议 500–1500。</Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Flex justify="space-between" align="center" gap={4}>
-                  <Stack gap={0}>
-                    <Field.Label mb={0}>对白上下文合并</Field.Label>
-                    <Field.HelperText mt={1}>
-                      开启后按窗口批量翻译，并携带上文作消歧，只保留焦点句结果，通常更通顺。默认开启。
-                    </Field.HelperText>
-                  </Stack>
-                  <Switch.Root
-                    checked={form.contextAwareTranslate}
-                    onCheckedChange={details =>
-                      setForm({ ...form, contextAwareTranslate: details.checked })
-                    }
-                  >
-                    <Switch.HiddenInput />
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch.Root>
-                </Flex>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>队列并发数</Field.Label>
+              <Input
+                type="number"
+                min={1}
+                max={32}
+                value={form.queueConcurrency}
+                onChange={event => setForm({ ...form, queueConcurrency: event.target.value })}
+              />
+              <Field.HelperText>
+                同时处理的翻译任务数，默认 1。提高可加快吞吐，但更容易触发限流。
+              </Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>一次窗口大小（句）</Field.Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={form.contextWindowSize}
-                  disabled={!form.contextAwareTranslate}
-                  onChange={event => setForm({ ...form, contextWindowSize: event.target.value })}
-                />
-                <Field.HelperText>
-                  每批一起翻译的焦点句数，默认
-                  500。窗口越大越快，但单次请求更长，标记抽取失败或限流时会回退/重试。仅在开启「对白上下文合并」时生效。
-                </Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>批次间隔（毫秒）</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                max={60000}
+                value={form.batchGapMs}
+                onChange={event => setForm({ ...form, batchGapMs: event.target.value })}
+              />
+              <Field.HelperText>
+                同一任务内相邻翻译请求之间的等待时间，默认 400。机器翻译与 LLM 共用。
+              </Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>最多上文（句）</Field.Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.contextPreviousSize}
-                  disabled={!form.contextAwareTranslate}
-                  onChange={event => setForm({ ...form, contextPreviousSize: event.target.value })}
-                />
-                <Field.HelperText>
-                  每批前面最多携带多少句上文作消歧（不写入输出），默认 100。
-                </Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>自动启动监听</Field.Label>
+                  <Field.HelperText mt={1}>服务启动后自动开始 watching。</Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.autoStart}
+                  onCheckedChange={details => setForm({ ...form, autoStart: details.checked })}
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
 
-              <Field.Root>
-                <Flex justify="space-between" align="center" gap={4}>
-                  <Stack gap={0}>
-                    <Field.Label mb={0}>强制 Batch 端点</Field.Label>
-                    <Field.HelperText mt={1}>
-                      关闭（默认）走更准确的 single 端点；开启更抗限流，但翻译质量通常更差。
-                    </Field.HelperText>
-                  </Stack>
-                  <Switch.Root
-                    checked={form.forceBatch}
-                    onCheckedChange={details => setForm({ ...form, forceBatch: details.checked })}
-                  >
-                    <Switch.HiddenInput />
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch.Root>
-                </Flex>
-              </Field.Root>
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>目标文件已存在时跳过</Field.Label>
+                  <Field.HelperText mt={1}>
+                    发现字幕时若输出文件已存在，则标记 SKIPPED。
+                  </Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.skipIfExists}
+                  onCheckedChange={details => setForm({ ...form, skipIfExists: details.checked })}
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
+          </SettingsCard>
 
-              <Field.Root>
-                <Field.Label>Debounce（毫秒）</Field.Label>
-                <Input
-                  type="number"
-                  min={100}
-                  value={form.debounceMs}
-                  onChange={event => setForm({ ...form, debounceMs: event.target.value })}
-                />
-                <Field.HelperText>
-                  同一文件连续变更时的合并等待时间，建议 500–1500。
-                </Field.HelperText>
-              </Field.Root>
+          <SettingsCard
+            title="机器翻译"
+            description="Google 免费接口 / Cloud Translation；未启用 LLM 或 LLM 回退时使用。"
+          >
+            <Field.Root>
+              <Field.Label>Google Cloud Translation API Key（可选）</Field.Label>
+              <Input
+                type="password"
+                value={form.googleApiKey}
+                onChange={event => setForm({ ...form, googleApiKey: event.target.value })}
+                placeholder="留空则使用免费接口"
+              />
+              <Field.HelperText>
+                填写后走官方 Cloud Translation v2；留空继续用免费网页接口。
+              </Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>队列并发数</Field.Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={32}
-                  value={form.queueConcurrency}
-                  onChange={event => setForm({ ...form, queueConcurrency: event.target.value })}
-                />
-                <Field.HelperText>
-                  同时处理的翻译任务数，默认 1。提高可加快吞吐，但更容易触发免费翻译限流。
-                </Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>对白上下文合并</Field.Label>
+                  <Field.HelperText mt={1}>
+                    机器翻译时按窗口批量翻译并携带上文消歧。默认开启。
+                  </Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.contextAwareTranslate}
+                  onCheckedChange={details =>
+                    setForm({ ...form, contextAwareTranslate: details.checked })
+                  }
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
 
-              <Field.Root>
-                <Field.Label>批次间隔（毫秒）</Field.Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={60000}
-                  value={form.batchGapMs}
-                  onChange={event => setForm({ ...form, batchGapMs: event.target.value })}
-                />
-                <Field.HelperText>
-                  同一任务内相邻翻译请求之间的等待时间，默认 400。设为 0 表示不等待。
-                </Field.HelperText>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>一次窗口大小（句）</Field.Label>
+              <Input
+                type="number"
+                min={1}
+                value={form.contextWindowSize}
+                disabled={!form.contextAwareTranslate}
+                onChange={event => setForm({ ...form, contextWindowSize: event.target.value })}
+              />
+              <Field.HelperText>机器翻译每批焦点句数，默认 500。</Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Flex justify="space-between" align="center" gap={4}>
-                  <Stack gap={0}>
-                    <Field.Label mb={0}>自动启动监听</Field.Label>
-                    <Field.HelperText mt={1}>服务启动后自动开始 watching。</Field.HelperText>
-                  </Stack>
-                  <Switch.Root
-                    checked={form.autoStart}
-                    onCheckedChange={details => setForm({ ...form, autoStart: details.checked })}
-                  >
-                    <Switch.HiddenInput />
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch.Root>
-                </Flex>
-              </Field.Root>
+            <Field.Root>
+              <Field.Label>最多上文（句）</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.contextPreviousSize}
+                disabled={!form.contextAwareTranslate}
+                onChange={event => setForm({ ...form, contextPreviousSize: event.target.value })}
+              />
+              <Field.HelperText>机器翻译每批最多携带上文句数，默认 100。</Field.HelperText>
+            </Field.Root>
 
-              <Field.Root>
-                <Flex justify="space-between" align="center" gap={4}>
-                  <Stack gap={0}>
-                    <Field.Label mb={0}>目标文件已存在时跳过</Field.Label>
-                    <Field.HelperText mt={1}>
-                      发现字幕时若输出文件已存在，则标记 SKIPPED。
-                    </Field.HelperText>
-                  </Stack>
-                  <Switch.Root
-                    checked={form.skipIfExists}
-                    onCheckedChange={details => setForm({ ...form, skipIfExists: details.checked })}
-                  >
-                    <Switch.HiddenInput />
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch.Root>
-                </Flex>
-              </Field.Root>
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>强制 Batch 端点</Field.Label>
+                  <Field.HelperText mt={1}>
+                    仅影响免费 Google 接口：关闭走更准的 single；开启更抗限流。
+                  </Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.forceBatch}
+                  onCheckedChange={details => setForm({ ...form, forceBatch: details.checked })}
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
+          </SettingsCard>
 
-              <Field.Root>
-                <Field.Label>Google Cloud Translation API Key（可选）</Field.Label>
-                <Input
-                  type="password"
-                  value={form.googleApiKey}
-                  onChange={event => setForm({ ...form, googleApiKey: event.target.value })}
-                  placeholder="留空则使用免费接口"
-                />
-                <Field.HelperText>
-                  填写后走官方 Cloud Translation v2；留空继续用免费网页接口。需在 Google Cloud 启用
-                  Cloud Translation API 并创建 API Key。
-                </Field.HelperText>
-              </Field.Root>
-            </Stack>
-          )}
-        </Card.Body>
-      </Card.Root>
+          <SettingsCard
+            title="大语言模型"
+            description="兼容 OpenAI Chat Completions（/v1/chat/completions）。启用且配置完整时优先使用。"
+          >
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>启用 LLM 翻译</Field.Label>
+                  <Field.HelperText mt={1}>
+                    开启后优先走 LLM；需同时填写 Base URL、API Key、模型名。
+                  </Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.llmEnabled}
+                  onCheckedChange={details => setForm({ ...form, llmEnabled: details.checked })}
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>Base URL</Field.Label>
+              <Input
+                value={form.llmBaseUrl}
+                disabled={!form.llmEnabled}
+                onChange={event => setForm({ ...form, llmBaseUrl: event.target.value })}
+                placeholder="https://api.openai.com/v1"
+                fontFamily="mono"
+              />
+              <Field.HelperText>
+                OpenAI 兼容服务根路径，例如 https://api.openai.com/v1 或第三方 /v1。勿包含
+                /chat/completions。
+              </Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>API Key</Field.Label>
+              <Input
+                type="password"
+                value={form.llmApiKey}
+                disabled={!form.llmEnabled}
+                onChange={event => setForm({ ...form, llmApiKey: event.target.value })}
+                placeholder="sk-..."
+              />
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>模型名</Field.Label>
+              <Input
+                value={form.llmModel}
+                disabled={!form.llmEnabled}
+                onChange={event => setForm({ ...form, llmModel: event.target.value })}
+                placeholder="gpt-4o-mini"
+                fontFamily="mono"
+              />
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>Temperature</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                value={form.llmTemperature}
+                disabled={!form.llmEnabled}
+                onChange={event => setForm({ ...form, llmTemperature: event.target.value })}
+              />
+              <Field.HelperText>默认 0.2，越低越稳定。</Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>一次窗口大小（句）</Field.Label>
+              <Input
+                type="number"
+                min={1}
+                value={form.llmContextWindowSize}
+                disabled={!form.llmEnabled}
+                onChange={event => setForm({ ...form, llmContextWindowSize: event.target.value })}
+              />
+              <Field.HelperText>
+                LLM 每批焦点句数，默认 800。字幕单句较短，按常见 128k 上下文可开得更大。
+              </Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>最多上文（句）</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.llmContextPreviousSize}
+                disabled={!form.llmEnabled}
+                onChange={event => setForm({ ...form, llmContextPreviousSize: event.target.value })}
+              />
+              <Field.HelperText>LLM 每批最多携带上文句数，默认 300。</Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>LLM 不可用时回退机器翻译</Field.Label>
+                  <Field.HelperText mt={1}>
+                    开启（默认）时，LLM 请求失败会回退 Google 机器翻译；关闭则任务直接失败。
+                  </Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.llmFallbackToMachine}
+                  disabled={!form.llmEnabled}
+                  onCheckedChange={details =>
+                    setForm({ ...form, llmFallbackToMachine: details.checked })
+                  }
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
+          </SettingsCard>
+        </>
+      )}
     </Stack>
   );
 }

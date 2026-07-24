@@ -182,4 +182,9 @@ pnpm smoke:translate # 翻译冒烟测试
 
 ## 说明
 
-翻译默认走免费 Google Translate 网页接口（无官方 SLA，可能限流）。在 Settings 填写 **Google Cloud Translation API Key** 后，自动切换为官方 Cloud Translation v2；Key 留空则仍用免费接口。可通过调低队列并发、增大批次间隔，以及内置重试缓解限流。
+翻译优先级：
+
+1. 若 Settings 启用 LLM，并填写了 OpenAI 兼容的 Base URL / API Key / 模型 → 走大模型翻译
+2. 否则（或 LLM 失败且开启「回退机器翻译」）→ Google Cloud Translation（有 Key）或免费网页接口
+
+机器翻译与 LLM 各自有独立的「一次窗口大小 / 最多上文」配置。LLM 默认窗口 800、上文 300（字幕单句较短，按常见 128k 上下文估算）。

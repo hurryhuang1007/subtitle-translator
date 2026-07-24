@@ -55,15 +55,27 @@ export type AppSettings = {
   queueConcurrency: number;
   /** 翻译批次间隔（毫秒） */
   batchGapMs: number;
-  /** 对白上下文合并（滑动窗口/段落） */
+  /** 对白上下文合并（滑动窗口/段落）——机器翻译 */
   contextAwareTranslate: boolean;
-  /** 一次翻译窗口大小（每批焦点句数） */
+  /** 机器翻译：一次窗口大小（每批焦点句数） */
   contextWindowSize: number;
-  /** 每批最多携带的上文句数 */
+  /** 机器翻译：每批最多携带的上文句数 */
   contextPreviousSize: number;
   /** 是否强制使用 Google batch 端点 */
   forceBatch: boolean;
   googleApiKey: string;
+  /** 是否启用 OpenAI 兼容 LLM 翻译 */
+  llmEnabled: boolean;
+  llmBaseUrl: string;
+  llmApiKey: string;
+  llmModel: string;
+  llmTemperature: number;
+  /** LLM：一次窗口大小 */
+  llmContextWindowSize: number;
+  /** LLM：最多上文 */
+  llmContextPreviousSize: number;
+  /** LLM 不可用时是否回退机器翻译 */
+  llmFallbackToMachine: boolean;
 };
 
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR';

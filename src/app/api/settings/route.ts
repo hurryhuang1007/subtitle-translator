@@ -2,6 +2,22 @@ import { bootstrapServer } from '@/server/bootstrap';
 import { getSettings, updateSettings, type AppSettings } from '@/server/config/settings';
 import { apiFail, apiOk } from '@/server/util/apiResponse';
 
+function requirePositiveInt(value: unknown, field: string, min = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < min) {
+    throw new Error(`${field} 需为不小于 ${min} 的数字`);
+  }
+  return Math.round(num);
+}
+
+function requireNonNegativeInt(value: unknown, field: string) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) {
+    throw new Error(`${field} 需为不小于 0 的数字`);
+  }
+  return Math.round(num);
+}
+
 function normalizeSettingsInput(body: Partial<AppSettings>) {
   const next: Partial<AppSettings> = {};
 
@@ -74,19 +90,14 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
   }
 
   if (body.contextWindowSize !== undefined) {
-    const contextWindowSize = Number(body.contextWindowSize);
-    if (!Number.isFinite(contextWindowSize) || contextWindowSize < 1) {
-      throw new Error('contextWindowSize 需为不小于 1 的数字');
-    }
-    next.contextWindowSize = Math.round(contextWindowSize);
+    next.contextWindowSize = requirePositiveInt(body.contextWindowSize, 'contextWindowSize');
   }
 
   if (body.contextPreviousSize !== undefined) {
-    const contextPreviousSize = Number(body.contextPreviousSize);
-    if (!Number.isFinite(contextPreviousSize) || contextPreviousSize < 0) {
-      throw new Error('contextPreviousSize 需为不小于 0 的数字');
-    }
-    next.contextPreviousSize = Math.round(contextPreviousSize);
+    next.contextPreviousSize = requireNonNegativeInt(
+      body.contextPreviousSize,
+      'contextPreviousSize'
+    );
   }
 
   if (body.forceBatch !== undefined) {
@@ -103,6 +114,48 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
 
   if (body.googleApiKey !== undefined) {
     next.googleApiKey = String(body.googleApiKey);
+  }
+
+  if (body.llmEnabled !== undefined) {
+    next.llmEnabled = Boolean(body.llmEnabled);
+  }
+
+  if (body.llmBaseUrl !== undefined) {
+    next.llmBaseUrl = String(body.llmBaseUrl).trim();
+  }
+
+  if (body.llmApiKey !== undefined) {
+    next.llmApiKey = String(body.llmApiKey);
+  }
+
+  if (body.llmModel !== undefined) {
+    next.llmModel = String(body.llmModel).trim();
+  }
+
+  if (body.llmTemperature !== undefined) {
+    const llmTemperature = Number(body.llmTemperature);
+    if (!Number.isFinite(llmTemperature) || llmTemperature < 0 || llmTemperature > 2) {
+      throw new Error('llmTemperature 需为 0–2 之间的数字');
+    }
+    next.llmTemperature = llmTemperature;
+  }
+
+  if (body.llmContextWindowSize !== undefined) {
+    next.llmContextWindowSize = requirePositiveInt(
+      body.llmContextWindowSize,
+      'llmContextWindowSize'
+    );
+  }
+
+  if (body.llmContextPreviousSize !== undefined) {
+    next.llmContextPreviousSize = requireNonNegativeInt(
+      body.llmContextPreviousSize,
+      'llmContextPreviousSize'
+    );
+  }
+
+  if (body.llmFallbackToMachine !== undefined) {
+    next.llmFallbackToMachine = Boolean(body.llmFallbackToMachine);
   }
 
   return next;

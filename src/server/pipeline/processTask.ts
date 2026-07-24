@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { TaskStatus } from '@prisma/client';
 
-import { getSettings } from '@/server/config/settings';
+import { getSettings, type AppSettings } from '@/server/config/settings';
 import { prisma } from '@/server/db/client';
 import { logger } from '@/server/logger/logger';
 import {
@@ -12,6 +12,7 @@ import {
   type ParsedSubtitle,
 } from '@/server/parser/parseSubtitle';
 import { translateTexts } from '@/server/translator/googleTranslate';
+import { isLlmConfigured, translateTextsWithLlm } from '@/server/translator/llmTranslate';
 import { resolveOutputPath } from '@/server/util/outputPath';
 
 export async function parseTaskSource(filePath: string): Promise<ParsedSubtitle> {
@@ -24,6 +25,59 @@ async function updateProgress(taskId: string, progress: number) {
     where: { id: taskId },
     data: { progress },
   });
+}
+
+function machineTranslateOptions(settings: AppSettings) {
+  return {
+    to: settings.targetLanguage,
+    from: settings.sourceLanguage,
+    apiKey: settings.googleApiKey,
+    batchGapMs: settings.batchGapMs,
+    forceBatch: settings.forceBatch,
+    contextAware: settings.contextAwareTranslate,
+    contextWindowSize: settings.contextWindowSize,
+    contextPreviousSize: settings.contextPreviousSize,
+  };
+}
+
+async function translateCueTexts(
+  sourceTexts: string[],
+  settings: AppSettings,
+  onProgress: (done: number, total: number) => void | Promise<void>
+) {
+  if (sourceTexts.length === 0) return [];
+
+  const runMachine = () =>
+    translateTexts(sourceTexts, {
+      ...machineTranslateOptions(settings),
+      onProgress,
+    });
+
+  if (!isLlmConfigured(settings)) {
+    return runMachine();
+  }
+
+  try {
+    return await translateTextsWithLlm(sourceTexts, {
+      to: settings.targetLanguage,
+      from: settings.sourceLanguage,
+      baseUrl: settings.llmBaseUrl,
+      apiKey: settings.llmApiKey,
+      model: settings.llmModel,
+      temperature: settings.llmTemperature,
+      batchGapMs: settings.batchGapMs,
+      contextWindowSize: settings.llmContextWindowSize,
+      contextPreviousSize: settings.llmContextPreviousSize,
+      onProgress,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!settings.llmFallbackToMachine) {
+      throw error;
+    }
+    logger.warn(`LLM 不可用，回退机器翻译: ${message}`);
+    return runMachine();
+  }
 }
 
 export async function processTask(taskId: string) {
@@ -60,24 +114,11 @@ export async function processTask(taskId: string) {
     logger.info(`解析完成: ${task.filename} cues=${parsed.cues.length}`);
 
     const sourceTexts = parsed.cues.map(cue => cue.text);
-    const translatedTexts =
-      sourceTexts.length === 0
-        ? []
-        : await translateTexts(sourceTexts, {
-            to: settings.targetLanguage,
-            from: settings.sourceLanguage,
-            apiKey: settings.googleApiKey,
-            batchGapMs: settings.batchGapMs,
-            forceBatch: settings.forceBatch,
-            contextAware: settings.contextAwareTranslate,
-            contextWindowSize: settings.contextWindowSize,
-            contextPreviousSize: settings.contextPreviousSize,
-            onProgress: async (done, total) => {
-              const ratio = total === 0 ? 1 : done / total;
-              const progress = Math.min(90, Math.round(20 + ratio * 70));
-              await updateProgress(taskId, progress);
-            },
-          });
+    const translatedTexts = await translateCueTexts(sourceTexts, settings, async (done, total) => {
+      const ratio = total === 0 ? 1 : done / total;
+      const progress = Math.min(90, Math.round(20 + ratio * 70));
+      await updateProgress(taskId, progress);
+    });
 
     await updateProgress(taskId, 92);
     const output = parsed.rebuild(translatedTexts);
