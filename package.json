@@ -15,7 +15,7 @@
     "db:studio": "prisma studio",
     "test:parser": "pnpm exec tsx scripts/test-parser.ts",
     "smoke:translate": "pnpm exec tsx scripts/smoke-translate.ts",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

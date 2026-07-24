@@ -21,7 +21,7 @@ ENV DATABASE_URL="file:./data/app.db"
 RUN mkdir -p data \
   && pnpm exec prisma generate \
   && pnpm build \
-  && pnpm prune --prod
+  && pnpm prune --prod --ignore-scripts
 
 FROM base AS runner
 ENV NODE_ENV=production
