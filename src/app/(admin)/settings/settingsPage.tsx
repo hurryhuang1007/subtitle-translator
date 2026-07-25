@@ -65,6 +65,7 @@ type FormState = {
   llmMaxRetries: string;
   llmContextWindowSize: string;
   llmContextPreviousSize: string;
+  llmFallbackFailedWindowToMachine: boolean;
   llmFallbackToMachine: boolean;
 };
 
@@ -108,6 +109,7 @@ function toFormState(settings: AppSettings): FormState {
     llmMaxRetries: String(settings.llmMaxRetries),
     llmContextWindowSize: String(settings.llmContextWindowSize),
     llmContextPreviousSize: String(settings.llmContextPreviousSize),
+    llmFallbackFailedWindowToMachine: settings.llmFallbackFailedWindowToMachine,
     llmFallbackToMachine: settings.llmFallbackToMachine,
   };
 }
@@ -150,6 +152,7 @@ function toPayload(form: FormState): Partial<AppSettings> {
     llmMaxRetries: Number(form.llmMaxRetries),
     llmContextWindowSize: Number(form.llmContextWindowSize),
     llmContextPreviousSize: Number(form.llmContextPreviousSize),
+    llmFallbackFailedWindowToMachine: form.llmFallbackFailedWindowToMachine,
     llmFallbackToMachine: form.llmFallbackToMachine,
   };
 }
@@ -707,6 +710,31 @@ export default function SettingsPage() {
                     disabled={!form.llmEnabled}
                     onCheckedChange={details =>
                       setForm({ ...form, llmFallbackToMachine: details.checked })
+                    }
+                  >
+                    <Switch.HiddenInput />
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Root>
+                </Flex>
+              </Field.Root>
+
+              <Field.Root>
+                <Flex justify="space-between" align="center" gap={4}>
+                  <Stack gap={0}>
+                    <Field.Label mb={0}>仅失败窗口回退机器翻译</Field.Label>
+                    <Field.HelperText mt={1}>
+                      需先开启「LLM
+                      不可用时回退机器翻译」。开启（默认）时，仅对失败的那个窗口用机器翻译，后续窗口继续尝试
+                      LLM；关闭则 LLM 失败后整文件回退机器翻译。
+                    </Field.HelperText>
+                  </Stack>
+                  <Switch.Root
+                    checked={form.llmFallbackFailedWindowToMachine}
+                    disabled={!form.llmEnabled || !form.llmFallbackToMachine}
+                    onCheckedChange={details =>
+                      setForm({ ...form, llmFallbackFailedWindowToMachine: details.checked })
                     }
                   >
                     <Switch.HiddenInput />

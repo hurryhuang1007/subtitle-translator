@@ -23,7 +23,7 @@ movie.eng.srt    →  movie.eng.zh.srt
 
 - **目录监听**：chokidar 监听配置目录，文件写入稳定后自动入队
 - **字幕格式**：支持 `.srt` / `.ass` / `.ssa`，可用正则进一步过滤文件名
-- **批量翻译**：默认 Google 机器翻译（免费接口或 Cloud Translation）；可选启用 **OpenAI 兼容 LLM** 优先翻译，失败时可回退机器翻译；带限流重试与可配置并发/间隔、上下文窗口
+- **批量翻译**：默认 Google 机器翻译（免费接口或 Cloud Translation）；可选启用 **OpenAI 兼容 LLM** 优先翻译，失败时可回退机器翻译（可仅失败窗口回退）；带限流重试与可配置并发/间隔、上下文窗口
 - **容错重试**：网络/限流错误可配置重试次数；遇 Google 限流或风控时还能自动缩小上下文窗口后重试
 - **任务管理**：查看详情、单条 Retry、一键重试全部失败任务
 - **Web 后台**：Dashboard / Tasks / Settings / Logs，深色主题
@@ -187,6 +187,8 @@ pnpm smoke:translate # 翻译冒烟测试
 
 1. 若 Settings 启用 LLM，并填写了 OpenAI 兼容的 Base URL / API Key / 模型 → 走大模型翻译
 2. 否则（或 LLM 失败且开启「回退机器翻译」）→ Google Cloud Translation（有 Key）或免费网页接口
+   - 同时开启「仅失败窗口回退机器翻译」（默认开）时：只对失败窗口用机器翻译，后续窗口继续 LLM
+   - 关闭「仅失败窗口回退」时：整文件用机器翻译重跑
 
 机器翻译与 LLM 各自有独立的「一次窗口大小 / 最多上文」配置。LLM 默认窗口 30、上文 5。
 

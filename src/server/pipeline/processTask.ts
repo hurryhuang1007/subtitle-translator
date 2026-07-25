@@ -49,10 +49,10 @@ async function translateCueTexts(
 ) {
   if (sourceTexts.length === 0) return [];
 
-  const runMachine = () =>
-    translateTexts(sourceTexts, {
+  const runMachine = (texts: string[] = sourceTexts) =>
+    translateTexts(texts, {
       ...machineTranslateOptions(settings),
-      onProgress,
+      onProgress: texts === sourceTexts ? onProgress : undefined,
     });
 
   if (!isLlmConfigured(settings)) {
@@ -72,6 +72,13 @@ async function translateCueTexts(
       contextWindowSize: settings.llmContextWindowSize,
       contextPreviousSize: settings.llmContextPreviousSize,
       onProgress,
+      onFailedWindow:
+        settings.llmFallbackToMachine && settings.llmFallbackFailedWindowToMachine
+          ? async ({ texts, start, end }) => {
+              const slice = texts.slice(start, end);
+              return runMachine(slice);
+            }
+          : undefined,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

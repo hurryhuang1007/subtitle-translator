@@ -69,6 +69,11 @@ export type AppSettings = {
   llmContextWindowSize: number;
   /** LLM：每批最多携带的上文句数 */
   llmContextPreviousSize: number;
+  /**
+   * LLM 某次窗口失败后，是否仅对该窗口回退机器翻译，后续窗口继续尝试 LLM。
+   * 仅在 llmFallbackToMachine 开启时生效；默认开启。
+   */
+  llmFallbackFailedWindowToMachine: boolean;
   /** LLM 不可用时是否回退到机器翻译 */
   llmFallbackToMachine: boolean;
 };
@@ -110,6 +115,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   llmMaxRetries: 5,
   llmContextWindowSize: 30,
   llmContextPreviousSize: 5,
+  llmFallbackFailedWindowToMachine: true,
   llmFallbackToMachine: true,
 };
 

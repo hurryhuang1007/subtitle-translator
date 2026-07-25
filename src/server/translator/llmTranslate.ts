@@ -7,6 +7,13 @@ const DEFAULT_MAX_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 20_000;
 
+export type LlmFailedWindowFallback = (params: {
+  texts: string[];
+  start: number;
+  end: number;
+  error: unknown;
+}) => Promise<string[]>;
+
 export type LlmTranslateOptions = {
   to: string;
   from?: string;
@@ -19,6 +26,11 @@ export type LlmTranslateOptions = {
   batchGapMs?: number;
   contextWindowSize?: number;
   contextPreviousSize?: number;
+  /**
+   * 某次窗口在重试耗尽后仍失败时调用；返回该窗口译文后继续后续窗口。
+   * 未提供或回调再抛错时，整次 LLM 翻译失败。
+   */
+  onFailedWindow?: LlmFailedWindowFallback;
   onProgress?: (done: number, total: number) => void | Promise<void>;
 };
 
@@ -355,6 +367,7 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     to,
     from,
     onProgress,
+    onFailedWindow,
     contextWindowSize = DEFAULT_WINDOW_SIZE,
     contextPreviousSize = DEFAULT_PREVIOUS_SIZE,
     maxRetries = DEFAULT_MAX_RETRIES,
@@ -392,19 +405,39 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
 
   for (let start = 0; start < texts.length; start += windowSize) {
     const chunkSize = Math.min(windowSize, texts.length - start);
-    const translated = await withRetry(
-      `LLM 翻译窗口 ${start + 1}-${start + chunkSize}/${texts.length}`,
-      () =>
-        translateWindowWithLlm(texts, start, windowSize, previousSize, {
-          to,
-          from,
-          baseUrl,
-          apiKey,
-          model,
-          temperature,
-        }),
-      retries
-    );
+    const end = start + chunkSize;
+    const label = `LLM 翻译窗口 ${start + 1}-${end}/${texts.length}`;
+
+    let translated: string[];
+    try {
+      translated = await withRetry(
+        label,
+        () =>
+          translateWindowWithLlm(texts, start, windowSize, previousSize, {
+            to,
+            from,
+            baseUrl,
+            apiKey,
+            model,
+            temperature,
+          }),
+        retries
+      );
+    } catch (error) {
+      if (!onFailedWindow) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`${label} 失败，回退该窗口机器翻译: ${message}`);
+      translated = await onFailedWindow({ texts, start, end, error });
+      if (translated.length !== chunkSize) {
+        throw new LlmTranslateError(
+          `失败窗口回退译文条数不匹配: expect ${chunkSize}, got ${translated.length}`,
+          { retryable: false }
+        );
+      }
+    }
 
     translated.forEach((text, i) => {
       output[start + i] = text;

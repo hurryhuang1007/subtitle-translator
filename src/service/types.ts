@@ -110,6 +110,8 @@ export type AppSettings = {
   llmContextWindowSize: number;
   /** LLM：最多上文 */
   llmContextPreviousSize: number;
+  /** LLM 失败时是否仅对失败窗口回退机器翻译（受 llmFallbackToMachine 控制） */
+  llmFallbackFailedWindowToMachine: boolean;
   /** LLM 不可用时是否回退机器翻译 */
   llmFallbackToMachine: boolean;
 };

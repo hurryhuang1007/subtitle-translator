@@ -192,6 +192,10 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     );
   }
 
+  if (body.llmFallbackFailedWindowToMachine !== undefined) {
+    next.llmFallbackFailedWindowToMachine = Boolean(body.llmFallbackFailedWindowToMachine);
+  }
+
   if (body.llmFallbackToMachine !== undefined) {
     next.llmFallbackToMachine = Boolean(body.llmFallbackToMachine);
   }
