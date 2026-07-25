@@ -30,12 +30,30 @@ export async function bootstrapServer() {
   // 先设置暂停状态，再 hydrate，避免启动时立刻开跑队列
   queue.setPaused(!settings.translationEnabled);
 
+  // 进程重启后内存队列丢失，库里残留的 RUNNING 视为中断，重置为 PENDING 再入队
+  const interrupted = await prisma.task.updateMany({
+    where: { status: TaskStatus.RUNNING },
+    data: {
+      status: TaskStatus.PENDING,
+      progress: 0,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+    },
+  });
+  if (interrupted.count > 0) {
+    logger.warn(`检测到 ${interrupted.count} 个中断的 RUNNING 任务，已重置为 PENDING 并准备重跑`);
+  }
+
   const pendingTasks = await prisma.task.findMany({
     where: { status: TaskStatus.PENDING },
     select: { id: true },
     orderBy: { createdAt: 'asc' },
   });
   queue.hydrate(pendingTasks.map(task => task.id));
+  if (pendingTasks.length > 0) {
+    logger.info(`已将 ${pendingTasks.length} 个 PENDING 任务重新放入队列`);
+  }
 
   patchRuntimeStatus({
     watching: false,

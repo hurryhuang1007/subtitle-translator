@@ -60,7 +60,7 @@ class MemoryQueue {
     void this.drain();
   }
 
-  /** 启动时把库里 PENDING 任务重新放回内存队列 */
+  /** 启动时把库里待执行任务重新放回内存队列（含重启前中断的 RUNNING） */
   hydrate(taskIds: string[]) {
     for (const id of taskIds) {
       if (!this.pending.includes(id)) {
