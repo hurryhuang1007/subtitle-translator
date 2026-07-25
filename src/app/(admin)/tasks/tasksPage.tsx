@@ -9,7 +9,6 @@ import {
   HStack,
   Input,
   NativeSelect,
-  Stack,
   Table,
   Text,
 } from '@chakra-ui/react';
@@ -192,8 +191,8 @@ export default function TasksPage() {
   const confirmColorPalette = confirm?.type === 'retryAll' ? 'orange' : 'red';
 
   return (
-    <Stack gap={6}>
-      <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
+    <Flex direction="column" gap={6} flex="1" minH={0} overflow="hidden">
+      <Flex justify="space-between" align="center" gap={3} flexWrap="wrap" flexShrink={0}>
         <Heading size="lg">Tasks</Heading>
         <HStack gap={2}>
           <Button
@@ -211,7 +210,7 @@ export default function TasksPage() {
         </HStack>
       </Flex>
 
-      <Card.Root>
+      <Card.Root flexShrink={0}>
         <Card.Body>
           <Flex gap={3} direction={{ base: 'column', md: 'row' }}>
             <Input
@@ -241,16 +240,16 @@ export default function TasksPage() {
       </Card.Root>
 
       {error ? (
-        <Card.Root>
+        <Card.Root flexShrink={0}>
           <Card.Body>
             <Text color="fg.error">任务加载失败：{error.message}</Text>
           </Card.Body>
         </Card.Root>
       ) : null}
 
-      <Card.Root>
-        <Card.Body p={0}>
-          <Table.ScrollArea maxW="100%">
+      <Card.Root flex="1" minH={0} display="flex" flexDirection="column" overflow="hidden">
+        <Card.Body p={0} flex="1" minH={0} display="flex" flexDirection="column" overflow="hidden">
+          <Table.ScrollArea maxW="100%" flex="1" minH={0} overflowY="auto">
             <Table.Root size="sm" stickyHeader tableLayout="fixed" w="100%">
               <Table.Header>
                 <Table.Row>
@@ -331,7 +330,7 @@ export default function TasksPage() {
         </Card.Body>
       </Card.Root>
 
-      <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
+      <Flex justify="space-between" align="center" gap={3} flexWrap="wrap" flexShrink={0}>
         <Text color="fg.muted" fontSize="sm">
           第 {displayPage} / {totalPages} 页 · 每页 {pageSize} 条
         </Text>
@@ -382,6 +381,6 @@ export default function TasksPage() {
           }
         }}
       />
-    </Stack>
+    </Flex>
   );
 }

@@ -28,7 +28,7 @@ export function AdminShell({ children }: PropsWithChildren) {
   const waiting = data?.waiting ?? 0;
 
   return (
-    <Flex minH="100vh" bg="bg.subtle">
+    <Flex h="100vh" overflow="hidden" bg="bg.subtle">
       <Box
         as="aside"
         w={{ base: '72px', md: '220px' }}
@@ -36,6 +36,8 @@ export function AdminShell({ children }: PropsWithChildren) {
         borderColor="border.subtle"
         px={{ base: 2, md: 4 }}
         py={6}
+        flexShrink={0}
+        overflowY="auto"
       >
         <ChakraLink asChild mb={6} display="block" _hover={{ opacity: 0.9 }}>
           <Link href="/dashboard" aria-label="Subtitle Translator">
@@ -78,9 +80,10 @@ export function AdminShell({ children }: PropsWithChildren) {
           })}
         </Stack>
       </Box>
-      <Flex as="main" flex="1" direction="column" minW={0}>
+      <Flex as="main" flex="1" direction="column" minW={0} minH={0} overflow="hidden">
         <Flex
           h="56px"
+          flexShrink={0}
           borderBottomWidth="1px"
           borderColor="border.subtle"
           align="center"
@@ -102,7 +105,16 @@ export function AdminShell({ children }: PropsWithChildren) {
             <ColorModeButton />
           </HStack>
         </Flex>
-        <Box p={{ base: 4, md: 6 }}>{children}</Box>
+        <Box
+          flex="1"
+          minH={0}
+          overflow="auto"
+          display="flex"
+          flexDirection="column"
+          p={{ base: 4, md: 6 }}
+        >
+          {children}
+        </Box>
       </Flex>
     </Flex>
   );

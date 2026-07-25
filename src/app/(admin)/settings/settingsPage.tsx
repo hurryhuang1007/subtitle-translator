@@ -208,7 +208,22 @@ export default function SettingsPage() {
 
   return (
     <Stack gap={6}>
-      <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
+      <Flex
+        justify="space-between"
+        align="center"
+        gap={3}
+        flexWrap="wrap"
+        position="sticky"
+        top={0}
+        zIndex={20}
+        bg="bg.subtle"
+        borderBottomWidth="1px"
+        borderColor="border.subtle"
+        mx={{ base: -4, md: -6 }}
+        px={{ base: 4, md: 6 }}
+        py={3}
+        mb={-3}
+      >
         <Heading size="lg">Settings</Heading>
         <HStack gap={2}>
           <Button variant="outline" onClick={refresh} disabled={loading || saving}>
