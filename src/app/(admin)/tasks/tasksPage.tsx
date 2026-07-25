@@ -23,12 +23,15 @@ import {
   TASK_STATUS_OPTIONS,
   taskStatusColor,
 } from '@/com/taskFormat';
+import { ConfirmDialog } from '@/com/ui/confirmDialog';
 import { toaster } from '@/com/ui/toaster';
 import { Tooltip } from '@/com/ui/tooltip';
 import { deleteTask, fetchTasks, retryFailedTasks, retryTask } from '@/service/tasks';
 import type { TaskItem, TaskStatus } from '@/service/types';
 
 const DEFAULT_PAGE_SIZE = 100;
+
+type ConfirmState = { type: 'retryAll' } | { type: 'delete'; task: TaskItem } | null;
 
 function TruncatedText({
   children,
@@ -65,6 +68,8 @@ export default function TasksPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [retryingAllFailed, setRetryingAllFailed] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [confirming, setConfirming] = useState(false);
 
   function goToPage(nextPage: number | ((current: number) => number)) {
     setPaging(prev => {
@@ -112,11 +117,9 @@ export default function TasksPage() {
     }
   }
 
-  async function handleRetryAllFailed() {
-    const ok = window.confirm('确认重新入队全部失败任务？');
-    if (!ok) return;
-
+  async function executeRetryAllFailed() {
     try {
+      setConfirming(true);
       setRetryingAllFailed(true);
       const result = await retryFailedTasks();
       if (result.count === 0) {
@@ -124,6 +127,7 @@ export default function TasksPage() {
       } else {
         toaster.success({ title: `已重新入队 ${result.count} 个失败任务` });
       }
+      setConfirm(null);
       refresh();
     } catch (err) {
       toaster.error({
@@ -131,15 +135,14 @@ export default function TasksPage() {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
+      setConfirming(false);
       setRetryingAllFailed(false);
     }
   }
 
-  async function handleDelete(task: TaskItem) {
-    const ok = window.confirm(`确认删除任务「${task.filename}」？`);
-    if (!ok) return;
-
+  async function executeDelete(task: TaskItem) {
     try {
+      setConfirming(true);
       setActingId(task.id);
       await deleteTask(task.id);
       toaster.success({ title: `已删除: ${task.filename}` });
@@ -147,6 +150,7 @@ export default function TasksPage() {
         setDetailOpen(false);
         setSelected(null);
       }
+      setConfirm(null);
       const remainingOnPage = (data?.items.length ?? 1) - 1;
       if (remainingOnPage <= 0 && page > 1) {
         goToPage(page - 1);
@@ -159,6 +163,7 @@ export default function TasksPage() {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
+      setConfirming(false);
       setActingId(null);
     }
   }
@@ -174,6 +179,18 @@ export default function TasksPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const busy = retryingAllFailed || actingId != null;
   const displayPage = Math.min(page, totalPages);
+
+  const confirmTitle =
+    confirm?.type === 'retryAll' ? '重试全部失败' : confirm?.type === 'delete' ? '删除任务' : '';
+  const confirmDescription =
+    confirm?.type === 'retryAll'
+      ? '确认重新入队全部失败任务？'
+      : confirm?.type === 'delete'
+        ? `确认删除任务「${confirm.task.filename}」？`
+        : '';
+  const confirmLabel = confirm?.type === 'retryAll' ? '确认重试' : '确认删除';
+  const confirmColorPalette = confirm?.type === 'retryAll' ? 'orange' : 'red';
+
   return (
     <Stack gap={6}>
       <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
@@ -184,7 +201,7 @@ export default function TasksPage() {
             colorPalette="orange"
             loading={retryingAllFailed}
             disabled={busy && !retryingAllFailed}
-            onClick={handleRetryAllFailed}
+            onClick={() => setConfirm({ type: 'retryAll' })}
           >
             重试全部失败
           </Button>
@@ -299,7 +316,7 @@ export default function TasksPage() {
                             variant="outline"
                             loading={actingId === task.id}
                             disabled={busy && actingId !== task.id}
-                            onClick={() => handleDelete(task)}
+                            onClick={() => setConfirm({ type: 'delete', task })}
                           >
                             Delete
                           </Button>
@@ -343,8 +360,27 @@ export default function TasksPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onRetry={handleRetry}
-        onDelete={handleDelete}
+        onDelete={task => setConfirm({ type: 'delete', task })}
         acting={Boolean(selected && actingId === selected.id)}
+      />
+
+      <ConfirmDialog
+        open={confirm != null}
+        onOpenChange={open => {
+          if (!open && !confirming) setConfirm(null);
+        }}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel={confirmLabel}
+        confirmColorPalette={confirmColorPalette}
+        loading={confirming}
+        onConfirm={async () => {
+          if (confirm?.type === 'retryAll') {
+            await executeRetryAllFailed();
+          } else if (confirm?.type === 'delete') {
+            await executeDelete(confirm.task);
+          }
+        }}
       />
     </Stack>
   );
