@@ -1,4 +1,5 @@
 import { logger } from '@/server/logger/logger';
+import { isProd } from '@/util/env';
 
 const DEFAULT_WINDOW_SIZE = 30;
 const DEFAULT_PREVIOUS_SIZE = 5;
@@ -313,6 +314,15 @@ async function translateWindowWithLlm(
 
   const translated = extractJsonArray(content);
   if (!translated || translated.length !== nonemptyFocus.length) {
+    if (!isProd) {
+      logger.warn(
+        [
+          `LLM 返回条数不匹配调试: expect ${nonemptyFocus.length}, got ${translated?.length ?? 0}`,
+          `原文: ${JSON.stringify(nonemptyFocus, null, 2)}`,
+          `译文: ${JSON.stringify(translated ?? content, null, 2)}`,
+        ].join('\n')
+      );
+    }
     throw new LlmTranslateError(
       `LLM 返回条数不匹配: expect ${nonemptyFocus.length}, got ${translated?.length ?? 0}`,
       { retryable: true }
