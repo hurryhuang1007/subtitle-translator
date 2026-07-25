@@ -2,8 +2,21 @@ import fetchApi from '@/util/fetchApi';
 
 import type { ScanProgress, StatusResponse, TaskItem, TaskListResponse, TaskStatus } from './types';
 
+/** 浏览器本地时区的「今天」起止（ISO UTC） */
+export function getLocalDayRangeIso() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
 export function fetchStatus() {
-  return fetchApi<StatusResponse>('/api/status', { cache: 'no-store' });
+  const { from, to } = getLocalDayRangeIso();
+  return fetchApi<StatusResponse>('/api/status', {
+    cache: 'no-store',
+    params: { from, to },
+  });
 }
 
 export function scanWatchDirs() {

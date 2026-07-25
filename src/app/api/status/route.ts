@@ -4,7 +4,9 @@ import { getRuntimeStatus } from '@/server/status/runtimeStatus';
 import { apiOk } from '@/server/util/apiResponse';
 import { getScanProgress } from '@/server/watcher/scan';
 
-function getTodayRange() {
+const MAX_DAY_RANGE_MS = 48 * 60 * 60 * 1000;
+
+function getServerTodayRange() {
   const now = new Date();
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
@@ -13,9 +15,33 @@ function getTodayRange() {
   return { start, end };
 }
 
-export async function GET() {
+/** 优先用前端传来的本地日界；非法或缺失时回退服务端本地日 */
+function resolveDayRange(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const fromParam = searchParams.get('from');
+  const toParam = searchParams.get('to');
+
+  if (fromParam && toParam) {
+    const start = new Date(fromParam);
+    const end = new Date(toParam);
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    if (
+      Number.isFinite(startMs) &&
+      Number.isFinite(endMs) &&
+      endMs > startMs &&
+      endMs - startMs <= MAX_DAY_RANGE_MS
+    ) {
+      return { start, end };
+    }
+  }
+
+  return getServerTodayRange();
+}
+
+export async function GET(request: Request) {
   const runtime = getRuntimeStatus();
-  const { start, end } = getTodayRange();
+  const { start, end } = resolveDayRange(request);
 
   const [settings, successToday, failedToday, recentTasks] = await Promise.all([
     getSettings(),
