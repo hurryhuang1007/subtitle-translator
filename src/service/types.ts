@@ -104,6 +104,8 @@ export type AppSettings = {
   llmApiKey: string;
   llmModel: string;
   llmTemperature: number;
+  /** LLM：可重试错误的最大重试次数（不含首次） */
+  llmMaxRetries: number;
   /** LLM：一次窗口大小 */
   llmContextWindowSize: number;
   /** LLM：最多上文 */

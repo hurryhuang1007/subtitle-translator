@@ -173,6 +173,11 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.llmTemperature = llmTemperature;
   }
 
+  if (body.llmMaxRetries !== undefined) {
+    const llmMaxRetries = requireNonNegativeInt(body.llmMaxRetries, 'llmMaxRetries');
+    next.llmMaxRetries = Math.min(30, llmMaxRetries);
+  }
+
   if (body.llmContextWindowSize !== undefined) {
     next.llmContextWindowSize = requirePositiveInt(
       body.llmContextWindowSize,

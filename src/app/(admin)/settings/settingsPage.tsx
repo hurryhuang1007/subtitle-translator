@@ -62,6 +62,7 @@ type FormState = {
   llmApiKey: string;
   llmModel: string;
   llmTemperature: string;
+  llmMaxRetries: string;
   llmContextWindowSize: string;
   llmContextPreviousSize: string;
   llmFallbackToMachine: boolean;
@@ -104,6 +105,7 @@ function toFormState(settings: AppSettings): FormState {
     llmApiKey: settings.llmApiKey,
     llmModel: settings.llmModel,
     llmTemperature: String(settings.llmTemperature),
+    llmMaxRetries: String(settings.llmMaxRetries),
     llmContextWindowSize: String(settings.llmContextWindowSize),
     llmContextPreviousSize: String(settings.llmContextPreviousSize),
     llmFallbackToMachine: settings.llmFallbackToMachine,
@@ -145,6 +147,7 @@ function toPayload(form: FormState): Partial<AppSettings> {
     llmApiKey: form.llmApiKey,
     llmModel: form.llmModel.trim(),
     llmTemperature: Number(form.llmTemperature),
+    llmMaxRetries: Number(form.llmMaxRetries),
     llmContextWindowSize: Number(form.llmContextWindowSize),
     llmContextPreviousSize: Number(form.llmContextPreviousSize),
     llmFallbackToMachine: form.llmFallbackToMachine,
@@ -378,20 +381,6 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
-                <Field.Label>网络重试次数</Field.Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={30}
-                  value={form.translateMaxRetries}
-                  onChange={event => setForm({ ...form, translateMaxRetries: event.target.value })}
-                />
-                <Field.HelperText>
-                  机器翻译遇网络/限流等可重试错误时，额外重试几次（不含首次请求），默认 5。
-                </Field.HelperText>
-              </Field.Root>
-
-              <Field.Root>
                 <Flex justify="space-between" align="center" gap={4}>
                   <Stack gap={0}>
                     <Field.Label mb={0}>自动启动监听</Field.Label>
@@ -491,6 +480,20 @@ export default function SettingsPage() {
                   onChange={event => setForm({ ...form, contextPreviousSize: event.target.value })}
                 />
                 <Field.HelperText>机器翻译每批最多携带上文句数，默认 100。</Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>网络重试次数</Field.Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={form.translateMaxRetries}
+                  onChange={event => setForm({ ...form, translateMaxRetries: event.target.value })}
+                />
+                <Field.HelperText>
+                  机器翻译遇网络/限流等可重试错误时，额外重试几次（不含首次请求），默认 5。
+                </Field.HelperText>
               </Field.Root>
 
               <Field.Root>
@@ -651,6 +654,21 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
+                <Field.Label>网络重试次数</Field.Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={form.llmMaxRetries}
+                  disabled={!form.llmEnabled}
+                  onChange={event => setForm({ ...form, llmMaxRetries: event.target.value })}
+                />
+                <Field.HelperText>
+                  LLM 遇网络/限流等可重试错误时，额外重试几次（不含首次请求），默认 5。
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
                 <Field.Label>一次窗口大小（句）</Field.Label>
                 <Input
                   type="number"
@@ -659,9 +677,7 @@ export default function SettingsPage() {
                   disabled={!form.llmEnabled}
                   onChange={event => setForm({ ...form, llmContextWindowSize: event.target.value })}
                 />
-                <Field.HelperText>
-                  LLM 每批焦点句数，默认 800。字幕单句较短，按常见 128k 上下文可开得更大。
-                </Field.HelperText>
+                <Field.HelperText>LLM 每批焦点句数，默认 30。</Field.HelperText>
               </Field.Root>
 
               <Field.Root>
@@ -675,7 +691,7 @@ export default function SettingsPage() {
                     setForm({ ...form, llmContextPreviousSize: event.target.value })
                   }
                 />
-                <Field.HelperText>LLM 每批最多携带上文句数，默认 300。</Field.HelperText>
+                <Field.HelperText>LLM 每批最多携带上文句数，默认 5。</Field.HelperText>
               </Field.Root>
 
               <Field.Root>

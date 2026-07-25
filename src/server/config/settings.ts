@@ -63,6 +63,8 @@ export type AppSettings = {
   llmModel: string;
   /** LLM 采样温度 */
   llmTemperature: number;
+  /** LLM：可重试错误的最大重试次数（不含首次） */
+  llmMaxRetries: number;
   /** LLM：一次窗口大小（每批焦点句数） */
   llmContextWindowSize: number;
   /** LLM：每批最多携带的上文句数 */
@@ -105,9 +107,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   llmApiKey: '',
   llmModel: '',
   llmTemperature: 0.2,
-  // 字幕单句通常很短；按常见 128k 上下文，约 800 焦点 + 300 上文仍有较大余量
-  llmContextWindowSize: 800,
-  llmContextPreviousSize: 300,
+  llmMaxRetries: 5,
+  llmContextWindowSize: 30,
+  llmContextPreviousSize: 5,
   llmFallbackToMachine: true,
 };
 

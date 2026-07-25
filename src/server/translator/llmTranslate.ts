@@ -1,8 +1,8 @@
 import { logger } from '@/server/logger/logger';
 
-const DEFAULT_WINDOW_SIZE = 800;
-const DEFAULT_PREVIOUS_SIZE = 300;
-const MAX_RETRIES = 3;
+const DEFAULT_WINDOW_SIZE = 30;
+const DEFAULT_PREVIOUS_SIZE = 5;
+const DEFAULT_MAX_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 20_000;
 
@@ -13,6 +13,8 @@ export type LlmTranslateOptions = {
   apiKey: string;
   model: string;
   temperature?: number;
+  /** 可重试错误的最大重试次数（不含首次），默认 5 */
+  maxRetries?: number;
   batchGapMs?: number;
   contextWindowSize?: number;
   contextPreviousSize?: number;
@@ -191,10 +193,11 @@ async function callChatCompletions(options: {
   return content;
 }
 
-async function withRetry<T>(label: string, run: () => Promise<T>): Promise<T> {
+async function withRetry<T>(label: string, run: () => Promise<T>, maxRetries: number): Promise<T> {
   let lastError: unknown;
+  const retries = Math.max(0, Math.floor(maxRetries));
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       return await run();
     } catch (error) {
@@ -204,13 +207,13 @@ async function withRetry<T>(label: string, run: () => Promise<T>): Promise<T> {
           ? error.retryable
           : /econnreset|etimedout|network|fetch failed|socket/i.test(errorMessage(error));
 
-      if (!retryable || attempt >= MAX_RETRIES) {
+      if (!retryable || attempt >= retries) {
         throw error;
       }
 
       const delay = retryDelayMs(attempt + 1);
       logger.warn(
-        `${label} 失败，${delay}ms 后重试 (${attempt + 1}/${MAX_RETRIES}): ${errorMessage(error)}`
+        `${label} 失败，${delay}ms 后重试 (${attempt + 1}/${retries}): ${errorMessage(error)}`
       );
       await sleep(delay);
     }
@@ -336,6 +339,7 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     onProgress,
     contextWindowSize = DEFAULT_WINDOW_SIZE,
     contextPreviousSize = DEFAULT_PREVIOUS_SIZE,
+    maxRetries = DEFAULT_MAX_RETRIES,
   } = options;
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const apiKey = options.apiKey.trim();
@@ -348,6 +352,10 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     typeof options.batchGapMs === 'number' && Number.isFinite(options.batchGapMs)
       ? Math.max(0, Math.round(options.batchGapMs))
       : 0;
+  const retries =
+    typeof maxRetries === 'number' && Number.isFinite(maxRetries)
+      ? Math.max(0, Math.round(maxRetries))
+      : DEFAULT_MAX_RETRIES;
 
   if (!baseUrl || !apiKey || !model) {
     throw new LlmTranslateError('LLM 未完整配置（需要 baseUrl / apiKey / model）');
@@ -376,7 +384,8 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
           apiKey,
           model,
           temperature,
-        })
+        }),
+      retries
     );
 
     translated.forEach((text, i) => {

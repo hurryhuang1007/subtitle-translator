@@ -67,6 +67,7 @@ async function translateCueTexts(
       apiKey: settings.llmApiKey,
       model: settings.llmModel,
       temperature: settings.llmTemperature,
+      maxRetries: settings.llmMaxRetries,
       batchGapMs: settings.batchGapMs,
       contextWindowSize: settings.llmContextWindowSize,
       contextPreviousSize: settings.llmContextPreviousSize,
