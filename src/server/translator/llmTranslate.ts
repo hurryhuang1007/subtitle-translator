@@ -228,12 +228,15 @@ function buildPrompt(params: {
   from?: string;
   to: string;
 }) {
+  const expectedCount = params.focusTexts.length;
   const system = [
     'You are a professional subtitle translator.',
     'Translate dialogue naturally and keep speaker tone.',
     'Preserve names, onomatopoeia, and line breaks inside a cue when present.',
     'Do not add explanations.',
-    'Return ONLY a JSON array of strings for the lines that must be translated, in the same order and length.',
+    'Return ONLY a JSON array of strings for the lines that must be translated, in the same order.',
+    'CRITICAL: the array length MUST equal the number of input lines exactly — never more, never fewer.',
+    'If you merge multiple input lines into one translation, put the merged text in the first corresponding slot and fill the remaining slots with empty strings "" so the total length still matches.',
   ].join(' ');
 
   const lines: string[] = [
@@ -251,7 +254,12 @@ function buildPrompt(params: {
   }
 
   lines.push('Translate the following subtitle lines.');
-  lines.push(`Return a JSON array with exactly ${params.focusTexts.length} strings.`);
+  lines.push(
+    `Return a JSON array with EXACTLY ${expectedCount} strings (length must be ${expectedCount}).`
+  );
+  lines.push(
+    'If you combine/merge lines, still output exactly that many items: use "" for unused slots after a merge.'
+  );
   lines.push('Lines:');
   params.focusTexts.forEach((text, i) => {
     lines.push(`${i + 1}. ${text}`);
