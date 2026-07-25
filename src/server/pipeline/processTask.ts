@@ -6,14 +6,11 @@ import { TaskStatus } from '@prisma/client';
 import { getSettings, type AppSettings } from '@/server/config/settings';
 import { prisma } from '@/server/db/client';
 import { logger } from '@/server/logger/logger';
-import {
-  parseSubtitleFileContent,
-  SubtitleParseError,
-  type ParsedSubtitle,
-} from '@/server/parser/parseSubtitle';
+import { parseSubtitleFileContent, type ParsedSubtitle } from '@/server/parser/parseSubtitle';
 import { translateTexts } from '@/server/translator/googleTranslate';
 import { isLlmConfigured, translateTextsWithLlm } from '@/server/translator/llmTranslate';
 import { resolveOutputPath } from '@/server/util/outputPath';
+import { formatTaskError } from '@/server/util/taskError';
 
 export async function parseTaskSource(filePath: string): Promise<ParsedSubtitle> {
   const content = await readFile(filePath, 'utf-8');
@@ -136,12 +133,7 @@ export async function processTask(taskId: string) {
 
     logger.info(`翻译完成: ${task.filename} -> ${path.basename(outputPath)}`);
   } catch (error) {
-    const message =
-      error instanceof SubtitleParseError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    const message = formatTaskError(error);
 
     logger.error(`任务失败: ${task.filename} - ${message}`);
     await prisma.task.update({

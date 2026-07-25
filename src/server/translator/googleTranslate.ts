@@ -6,6 +6,7 @@ import {
   CLOUD_MAX_ITEMS_PER_BATCH,
   cloudTranslateTexts,
 } from '@/server/translator/cloudTranslate';
+import { formatMachineTranslateError, MachineTranslateError } from '@/server/util/taskError';
 
 const FREE_MAX_CHARS_PER_BATCH = 4500;
 const FREE_MAX_ITEMS_PER_BATCH = 40;
@@ -114,6 +115,8 @@ export function isRetryableTranslateError(error: unknown) {
     message.includes('rate limit') ||
     message.includes('ratelimit') ||
     message.includes('429') ||
+    message.includes('partial translation request fail') ||
+    message.includes('rejected by the server') ||
     message.includes('econnreset') ||
     message.includes('etimedout') ||
     message.includes('network') ||
@@ -425,11 +428,14 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
           output[start + i] = text;
         });
       } catch (error) {
-        const message = errorMessage(error);
-        logger.error(
-          `翻译窗口失败 (${start + 1}-${start + chunkSize}/${texts.length}): ${message}`
-        );
-        throw error;
+        const scope = `窗口 ${start + 1}-${start + chunkSize}/${texts.length}`;
+        const message = formatMachineTranslateError({
+          provider: apiKey ? 'cloud' : 'free',
+          scope,
+          error,
+        });
+        logger.error(message);
+        throw new MachineTranslateError(message, { cause: error });
       }
 
       done += chunkSize;
@@ -450,9 +456,14 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
           translateOne(text, callOptions)
         );
       } catch (error) {
-        const message = errorMessage(error);
-        logger.error(`翻译句子失败 (${i + 1}/${texts.length}): ${message}`);
-        throw error;
+        const scope = `句子 ${i + 1}/${texts.length}`;
+        const message = formatMachineTranslateError({
+          provider: apiKey ? 'cloud' : 'free',
+          scope,
+          error,
+        });
+        logger.error(message);
+        throw new MachineTranslateError(message, { cause: error });
       }
 
       done += 1;
@@ -480,9 +491,14 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
         cursor += 1;
       });
     } catch (error) {
-      const message = errorMessage(error);
-      logger.error(`翻译批次失败 (${i + 1}/${batches.length}): ${message}`);
-      throw error;
+      const scope = `批次 ${i + 1}/${batches.length}`;
+      const message = formatMachineTranslateError({
+        provider: apiKey ? 'cloud' : 'free',
+        scope,
+        error,
+      });
+      logger.error(message);
+      throw new MachineTranslateError(message, { cause: error });
     }
 
     done += batch.length;
