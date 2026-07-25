@@ -23,6 +23,10 @@ export type AppSettings = {
   /** 翻译批次间隔（毫秒） */
   batchGapMs: number;
   /**
+   * 机器翻译：可重试错误（网络/限流等）的最大重试次数（不含首次请求）。
+   */
+  translateMaxRetries: number;
+  /**
    * 机器翻译：对白上下文合并。
    * 开启后会把相邻多句合并成一段再翻译，通常更通顺。
    */
@@ -31,6 +35,17 @@ export type AppSettings = {
   contextWindowSize: number;
   /** 机器翻译：每批最多携带的上文句数 */
   contextPreviousSize: number;
+  /**
+   * 遇 Google 限流/风控时，是否自动缩小上下文窗口后重试。
+   * 仅对「对白上下文合并」生效。
+   */
+  shrinkWindowOnRateLimit: boolean;
+  /** 缩窗重试次数（每次失败最多再缩几次） */
+  shrinkWindowRetries: number;
+  /** 缩窗时窗口大小下限 */
+  shrinkWindowMinSize: number;
+  /** 缩窗时上文句数下限 */
+  shrinkPreviousMinSize: number;
   /**
    * 是否强制使用 Google batch 端点。
    * false 时走更准确的 single 端点，但更容易限流。
@@ -75,9 +90,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   debounceMs: 800,
   queueConcurrency: 1,
   batchGapMs: 400,
+  translateMaxRetries: 5,
   contextAwareTranslate: true,
   contextWindowSize: 500,
   contextPreviousSize: 100,
+  shrinkWindowOnRateLimit: true,
+  shrinkWindowRetries: 3,
+  shrinkWindowMinSize: 100,
+  shrinkPreviousMinSize: 30,
   forceBatch: false,
   googleApiKey: '',
   llmEnabled: false,

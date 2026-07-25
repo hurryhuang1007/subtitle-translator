@@ -34,6 +34,11 @@ function machineTranslateOptions(settings: AppSettings) {
     contextAware: settings.contextAwareTranslate,
     contextWindowSize: settings.contextWindowSize,
     contextPreviousSize: settings.contextPreviousSize,
+    translateMaxRetries: settings.translateMaxRetries,
+    shrinkWindowOnRateLimit: settings.shrinkWindowOnRateLimit,
+    shrinkWindowRetries: settings.shrinkWindowRetries,
+    shrinkWindowMinSize: settings.shrinkWindowMinSize,
+    shrinkPreviousMinSize: settings.shrinkPreviousMinSize,
   };
 }
 

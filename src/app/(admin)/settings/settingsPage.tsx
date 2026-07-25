@@ -45,9 +45,14 @@ type FormState = {
   debounceMs: string;
   queueConcurrency: string;
   batchGapMs: string;
+  translateMaxRetries: string;
   contextAwareTranslate: boolean;
   contextWindowSize: string;
   contextPreviousSize: string;
+  shrinkWindowOnRateLimit: boolean;
+  shrinkWindowRetries: string;
+  shrinkWindowMinSize: string;
+  shrinkPreviousMinSize: string;
   forceBatch: boolean;
   autoStart: boolean;
   skipIfExists: boolean;
@@ -82,9 +87,14 @@ function toFormState(settings: AppSettings): FormState {
     debounceMs: String(settings.debounceMs),
     queueConcurrency: String(settings.queueConcurrency),
     batchGapMs: String(settings.batchGapMs),
+    translateMaxRetries: String(settings.translateMaxRetries),
     contextAwareTranslate: settings.contextAwareTranslate,
     contextWindowSize: String(settings.contextWindowSize),
     contextPreviousSize: String(settings.contextPreviousSize),
+    shrinkWindowOnRateLimit: settings.shrinkWindowOnRateLimit,
+    shrinkWindowRetries: String(settings.shrinkWindowRetries),
+    shrinkWindowMinSize: String(settings.shrinkWindowMinSize),
+    shrinkPreviousMinSize: String(settings.shrinkPreviousMinSize),
     forceBatch: settings.forceBatch,
     autoStart: settings.autoStart,
     skipIfExists: settings.skipIfExists,
@@ -118,9 +128,14 @@ function toPayload(form: FormState): Partial<AppSettings> {
     debounceMs: Number(form.debounceMs),
     queueConcurrency: Number(form.queueConcurrency),
     batchGapMs: Number(form.batchGapMs),
+    translateMaxRetries: Number(form.translateMaxRetries),
     contextAwareTranslate: form.contextAwareTranslate,
     contextWindowSize: Number(form.contextWindowSize),
     contextPreviousSize: Number(form.contextPreviousSize),
+    shrinkWindowOnRateLimit: form.shrinkWindowOnRateLimit,
+    shrinkWindowRetries: Number(form.shrinkWindowRetries),
+    shrinkWindowMinSize: Number(form.shrinkWindowMinSize),
+    shrinkPreviousMinSize: Number(form.shrinkPreviousMinSize),
     forceBatch: form.forceBatch,
     autoStart: form.autoStart,
     skipIfExists: form.skipIfExists,
@@ -344,6 +359,20 @@ export default function SettingsPage() {
             </Field.Root>
 
             <Field.Root>
+              <Field.Label>网络重试次数</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                max={30}
+                value={form.translateMaxRetries}
+                onChange={event => setForm({ ...form, translateMaxRetries: event.target.value })}
+              />
+              <Field.HelperText>
+                机器翻译遇网络/限流等可重试错误时，额外重试几次（不含首次请求），默认 5。
+              </Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
               <Flex justify="space-between" align="center" gap={4}>
                 <Stack gap={0}>
                   <Field.Label mb={0}>自动启动监听</Field.Label>
@@ -443,6 +472,65 @@ export default function SettingsPage() {
                 onChange={event => setForm({ ...form, contextPreviousSize: event.target.value })}
               />
               <Field.HelperText>机器翻译每批最多携带上文句数，默认 100。</Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Flex justify="space-between" align="center" gap={4}>
+                <Stack gap={0}>
+                  <Field.Label mb={0}>限流时缩窗重试</Field.Label>
+                  <Field.HelperText mt={1}>
+                    遇到 Google 限流/风控时，自动减半窗口与上文后重试。默认开启。
+                  </Field.HelperText>
+                </Stack>
+                <Switch.Root
+                  checked={form.shrinkWindowOnRateLimit}
+                  disabled={!form.contextAwareTranslate}
+                  onCheckedChange={details =>
+                    setForm({ ...form, shrinkWindowOnRateLimit: details.checked })
+                  }
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>缩窗重试次数</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.shrinkWindowRetries}
+                disabled={!form.contextAwareTranslate || !form.shrinkWindowOnRateLimit}
+                onChange={event => setForm({ ...form, shrinkWindowRetries: event.target.value })}
+              />
+              <Field.HelperText>单次任务内最多缩窗几次，默认 3。</Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>窗口下限（句）</Field.Label>
+              <Input
+                type="number"
+                min={1}
+                value={form.shrinkWindowMinSize}
+                disabled={!form.contextAwareTranslate || !form.shrinkWindowOnRateLimit}
+                onChange={event => setForm({ ...form, shrinkWindowMinSize: event.target.value })}
+              />
+              <Field.HelperText>缩窗后窗口大小不低于此值，默认 100。</Field.HelperText>
+            </Field.Root>
+
+            <Field.Root>
+              <Field.Label>上文下限（句）</Field.Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.shrinkPreviousMinSize}
+                disabled={!form.contextAwareTranslate || !form.shrinkWindowOnRateLimit}
+                onChange={event => setForm({ ...form, shrinkPreviousMinSize: event.target.value })}
+              />
+              <Field.HelperText>缩窗后上文句数不低于此值，默认 30。</Field.HelperText>
             </Field.Root>
 
             <Field.Root>

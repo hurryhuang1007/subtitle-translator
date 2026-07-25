@@ -79,12 +79,22 @@ export type AppSettings = {
   queueConcurrency: number;
   /** 翻译批次间隔（毫秒） */
   batchGapMs: number;
+  /** 机器翻译可重试错误的最大重试次数（不含首次） */
+  translateMaxRetries: number;
   /** 对白上下文合并（滑动窗口/段落）——机器翻译 */
   contextAwareTranslate: boolean;
   /** 机器翻译：一次窗口大小（每批焦点句数） */
   contextWindowSize: number;
   /** 机器翻译：每批最多携带的上文句数 */
   contextPreviousSize: number;
+  /** 限流/风控时是否自动缩窗重试 */
+  shrinkWindowOnRateLimit: boolean;
+  /** 缩窗重试次数 */
+  shrinkWindowRetries: number;
+  /** 缩窗窗口下限 */
+  shrinkWindowMinSize: number;
+  /** 缩窗上文下限 */
+  shrinkPreviousMinSize: number;
   /** 是否强制使用 Google batch 端点 */
   forceBatch: boolean;
   googleApiKey: string;

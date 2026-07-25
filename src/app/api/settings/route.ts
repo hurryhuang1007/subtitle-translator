@@ -84,6 +84,14 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.batchGapMs = Math.min(60_000, Math.round(batchGapMs));
   }
 
+  if (body.translateMaxRetries !== undefined) {
+    const translateMaxRetries = requireNonNegativeInt(
+      body.translateMaxRetries,
+      'translateMaxRetries'
+    );
+    next.translateMaxRetries = Math.min(30, translateMaxRetries);
+  }
+
   if (body.contextAwareTranslate !== undefined) {
     next.contextAwareTranslate = Boolean(body.contextAwareTranslate);
   }
@@ -96,6 +104,28 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.contextPreviousSize = requireNonNegativeInt(
       body.contextPreviousSize,
       'contextPreviousSize'
+    );
+  }
+
+  if (body.shrinkWindowOnRateLimit !== undefined) {
+    next.shrinkWindowOnRateLimit = Boolean(body.shrinkWindowOnRateLimit);
+  }
+
+  if (body.shrinkWindowRetries !== undefined) {
+    next.shrinkWindowRetries = requireNonNegativeInt(
+      body.shrinkWindowRetries,
+      'shrinkWindowRetries'
+    );
+  }
+
+  if (body.shrinkWindowMinSize !== undefined) {
+    next.shrinkWindowMinSize = requirePositiveInt(body.shrinkWindowMinSize, 'shrinkWindowMinSize');
+  }
+
+  if (body.shrinkPreviousMinSize !== undefined) {
+    next.shrinkPreviousMinSize = requireNonNegativeInt(
+      body.shrinkPreviousMinSize,
+      'shrinkPreviousMinSize'
     );
   }
 

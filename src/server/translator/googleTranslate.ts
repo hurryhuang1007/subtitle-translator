@@ -14,8 +14,8 @@ const DEFAULT_BATCH_GAP_MS = 400;
 const DEFAULT_CONTEXT_WINDOW_SIZE = 500;
 const DEFAULT_CONTEXT_PREVIOUS_SIZE = 100;
 
-/** 单次翻译最大重试次数（不含首次） */
-const MAX_RETRIES = 5;
+/** 单次翻译默认最大重试次数（不含首次） */
+const DEFAULT_MAX_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 30_000;
 
@@ -26,6 +26,8 @@ export type TranslateTextsOptions = {
   /** Cloud Translation API Key；空则走免费接口 */
   apiKey?: string;
   batchGapMs?: number;
+  /** 可重试错误的最大重试次数（不含首次），默认 5 */
+  translateMaxRetries?: number;
   /** 默认 false：免费接口走更准确的 single 端点；Cloud 下批量质量相同，仍可用于控制请求形态 */
   forceBatch?: boolean;
   /** 默认 true：相邻多句合并成段落再翻译 */
@@ -34,6 +36,14 @@ export type TranslateTextsOptions = {
   contextWindowSize?: number;
   /** 每批最多携带上文句数，默认 100 */
   contextPreviousSize?: number;
+  /** 限流/风控时是否缩窗重试，默认 true */
+  shrinkWindowOnRateLimit?: boolean;
+  /** 缩窗重试次数，默认 3 */
+  shrinkWindowRetries?: number;
+  /** 窗口大小下限，默认 100 */
+  shrinkWindowMinSize?: number;
+  /** 上文句数下限，默认 30 */
+  shrinkPreviousMinSize?: number;
   onProgress?: (done: number, total: number) => void | Promise<void>;
 };
 
@@ -75,11 +85,14 @@ function errorStatus(error: unknown) {
 
 /** 限流 / 网络 / 网关类错误可重试；解析或参数类错误不重试 */
 export function isRetryableTranslateError(error: unknown) {
+  if (isRateLimitOrRejectError(error)) {
+    return true;
+  }
+
   const status = errorStatus(error);
   if (
     status === 408 ||
     status === 425 ||
-    status === 429 ||
     status === 500 ||
     status === 502 ||
     status === 503 ||
@@ -111,12 +124,6 @@ export function isRetryableTranslateError(error: unknown) {
 
   const message = errorMessage(error).toLowerCase();
   return (
-    message.includes('too many requests') ||
-    message.includes('rate limit') ||
-    message.includes('ratelimit') ||
-    message.includes('429') ||
-    message.includes('partial translation request fail') ||
-    message.includes('rejected by the server') ||
     message.includes('econnreset') ||
     message.includes('etimedout') ||
     message.includes('network') ||
@@ -129,28 +136,70 @@ export function isRetryableTranslateError(error: unknown) {
   );
 }
 
+/** 适合通过缩小窗口规避的限流 / 风控类错误 */
+export function isRateLimitOrRejectError(error: unknown) {
+  const candidates: unknown[] = [error];
+  if (error instanceof Error && 'cause' in error && (error as { cause?: unknown }).cause != null) {
+    candidates.push((error as { cause?: unknown }).cause);
+  }
+
+  for (const candidate of candidates) {
+    const status = errorStatus(candidate);
+    if (status === 429 || status === 503) {
+      return true;
+    }
+
+    const message = errorMessage(candidate).toLowerCase();
+    if (
+      message.includes('partial translation request fail') ||
+      message.includes('rejected by the server') ||
+      message.includes('too many requests') ||
+      message.includes('rate limit') ||
+      message.includes('ratelimit') ||
+      message.includes('429') ||
+      message.includes('quota exceeded') ||
+      message.includes('user rate limit')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function shrinkDimension(current: number, min: number) {
+  const floored = Math.max(min, Math.floor(current / 2));
+  if (floored >= current) return null;
+  return floored;
+}
+
 function retryDelayMs(attempt: number) {
   const exp = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
   const jitter = Math.floor(Math.random() * 250);
   return Math.min(RETRY_MAX_DELAY_MS, exp + jitter);
 }
 
-async function withTranslateRetry<T>(label: string, run: () => Promise<T>): Promise<T> {
+async function withTranslateRetry<T>(
+  label: string,
+  run: () => Promise<T>,
+  maxRetries: number
+): Promise<T> {
   let lastError: unknown;
+  const retries = Math.max(0, Math.floor(maxRetries));
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       return await run();
     } catch (error) {
       lastError = error;
       const retryable = isRetryableTranslateError(error);
-      if (!retryable || attempt >= MAX_RETRIES) {
+      if (!retryable || attempt >= retries) {
         throw error;
       }
 
       const delay = retryDelayMs(attempt + 1);
       logger.warn(
-        `${label} 失败，${delay}ms 后重试 (${attempt + 1}/${MAX_RETRIES}): ${errorMessage(error)}`
+        `${label} 失败，${delay}ms 后重试 (${attempt + 1}/${retries}): ${errorMessage(error)}`
       );
       await sleep(delay);
     }
@@ -386,6 +435,11 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     contextAware = true,
     contextWindowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
     contextPreviousSize = DEFAULT_CONTEXT_PREVIOUS_SIZE,
+    shrinkWindowOnRateLimit = true,
+    shrinkWindowRetries = 3,
+    shrinkWindowMinSize = 100,
+    shrinkPreviousMinSize = 30,
+    translateMaxRetries = DEFAULT_MAX_RETRIES,
   } = options;
   const from = normalizeSourceLanguage(options.from);
   const apiKey = normalizeApiKey(options.apiKey);
@@ -393,6 +447,10 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     typeof options.batchGapMs === 'number' && Number.isFinite(options.batchGapMs)
       ? Math.max(0, Math.round(options.batchGapMs))
       : DEFAULT_BATCH_GAP_MS;
+  const maxRetries =
+    typeof translateMaxRetries === 'number' && Number.isFinite(translateMaxRetries)
+      ? Math.max(0, Math.round(translateMaxRetries))
+      : DEFAULT_MAX_RETRIES;
 
   if (texts.length === 0) {
     return [];
@@ -415,19 +473,48 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
   let done = 0;
 
   if (contextAware) {
-    const windowSize = Math.max(1, Math.floor(contextWindowSize));
-    for (let start = 0; start < texts.length; start += windowSize) {
+    let windowSize = Math.max(1, Math.floor(contextWindowSize));
+    let previousSize = Math.max(0, Math.floor(contextPreviousSize));
+    const minWindow = Math.max(1, Math.floor(shrinkWindowMinSize));
+    const minPrevious = Math.max(0, Math.floor(shrinkPreviousMinSize));
+    const maxShrinkRetries = Math.max(0, Math.floor(shrinkWindowRetries));
+    let shrinkAttemptsUsed = 0;
+
+    let start = 0;
+    while (start < texts.length) {
       const chunkSize = Math.min(windowSize, texts.length - start);
       try {
         const translated = await withTranslateRetry(
           `翻译窗口 ${start + 1}-${start + chunkSize}/${texts.length}`,
-          () =>
-            translateWindowWithContext(texts, start, windowSize, contextPreviousSize, callOptions)
+          () => translateWindowWithContext(texts, start, windowSize, previousSize, callOptions),
+          maxRetries
         );
         translated.forEach((text, i) => {
           output[start + i] = text;
         });
       } catch (error) {
+        const canShrink =
+          shrinkWindowOnRateLimit &&
+          shrinkAttemptsUsed < maxShrinkRetries &&
+          isRateLimitOrRejectError(error);
+
+        if (canShrink) {
+          const nextWindow = shrinkDimension(windowSize, minWindow);
+          const nextPrevious = shrinkDimension(previousSize, minPrevious);
+          if (nextWindow != null || nextPrevious != null) {
+            if (nextWindow != null) windowSize = nextWindow;
+            if (nextPrevious != null) previousSize = nextPrevious;
+            shrinkAttemptsUsed += 1;
+            logger.warn(
+              `检测到限流/风控，缩窗重试 ${shrinkAttemptsUsed}/${maxShrinkRetries}: window=${windowSize} previous=${previousSize}`
+            );
+            if (batchGapMs > 0) {
+              await sleep(batchGapMs);
+            }
+            continue;
+          }
+        }
+
         const scope = `窗口 ${start + 1}-${start + chunkSize}/${texts.length}`;
         const message = formatMachineTranslateError({
           provider: apiKey ? 'cloud' : 'free',
@@ -439,9 +526,10 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
       }
 
       done += chunkSize;
+      start += chunkSize;
       await onProgress?.(done, texts.length);
 
-      if (start + windowSize < texts.length && batchGapMs > 0) {
+      if (start < texts.length && batchGapMs > 0) {
         await sleep(batchGapMs);
       }
     }
@@ -452,8 +540,10 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     for (let i = 0; i < texts.length; i += 1) {
       const text = texts[i] ?? '';
       try {
-        output[i] = await withTranslateRetry(`翻译句子 ${i + 1}/${texts.length}`, () =>
-          translateOne(text, callOptions)
+        output[i] = await withTranslateRetry(
+          `翻译句子 ${i + 1}/${texts.length}`,
+          () => translateOne(text, callOptions),
+          maxRetries
         );
       } catch (error) {
         const scope = `句子 ${i + 1}/${texts.length}`;
@@ -483,8 +573,10 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
   for (let i = 0; i < batches.length; i += 1) {
     const batch = batches[i] ?? [];
     try {
-      const translated = await withTranslateRetry(`翻译批次 ${i + 1}/${batches.length}`, () =>
-        translateArray(batch, callOptions)
+      const translated = await withTranslateRetry(
+        `翻译批次 ${i + 1}/${batches.length}`,
+        () => translateArray(batch, callOptions),
+        maxRetries
       );
       translated.forEach(text => {
         output[cursor] = text;
