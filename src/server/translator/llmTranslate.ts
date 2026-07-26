@@ -324,6 +324,10 @@ async function translateWindowWithLlm(
     user,
   });
 
+  if (!isProd) {
+    logger.info(`LLM 返回内容: ${content}`);
+  }
+
   const translated = extractJsonArray(content);
   if (!translated || translated.length !== nonemptyFocus.length) {
     if (!isProd) {
