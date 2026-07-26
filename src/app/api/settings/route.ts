@@ -107,6 +107,13 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     );
   }
 
+  if (body.contextWindowMaxChars !== undefined) {
+    next.contextWindowMaxChars = requirePositiveInt(
+      body.contextWindowMaxChars,
+      'contextWindowMaxChars'
+    );
+  }
+
   if (body.shrinkWindowOnRateLimit !== undefined) {
     next.shrinkWindowOnRateLimit = Boolean(body.shrinkWindowOnRateLimit);
   }
@@ -173,6 +180,18 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.llmTemperature = llmTemperature;
   }
 
+  if (body.llmMaxTokensInputMultiplier !== undefined) {
+    const llmMaxTokensInputMultiplier = Number(body.llmMaxTokensInputMultiplier);
+    if (
+      !Number.isFinite(llmMaxTokensInputMultiplier) ||
+      llmMaxTokensInputMultiplier <= 0 ||
+      llmMaxTokensInputMultiplier > 50
+    ) {
+      throw new Error('llmMaxTokensInputMultiplier 需为大于 0 且不超过 50 的数字');
+    }
+    next.llmMaxTokensInputMultiplier = llmMaxTokensInputMultiplier;
+  }
+
   if (body.llmMaxRetries !== undefined) {
     const llmMaxRetries = requireNonNegativeInt(body.llmMaxRetries, 'llmMaxRetries');
     next.llmMaxRetries = Math.min(30, llmMaxRetries);
@@ -189,6 +208,13 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
     next.llmContextPreviousSize = requireNonNegativeInt(
       body.llmContextPreviousSize,
       'llmContextPreviousSize'
+    );
+  }
+
+  if (body.llmContextWindowMaxChars !== undefined) {
+    next.llmContextWindowMaxChars = requirePositiveInt(
+      body.llmContextWindowMaxChars,
+      'llmContextWindowMaxChars'
     );
   }
 

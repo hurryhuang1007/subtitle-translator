@@ -1,9 +1,12 @@
 import { logger } from '@/server/logger/logger';
+import { buildContextWindow, type ContextWindow } from '@/server/translator/contextWindow';
 import { isProd } from '@/util/env';
 
 const DEFAULT_WINDOW_SIZE = 30;
 const DEFAULT_PREVIOUS_SIZE = 5;
+const DEFAULT_WINDOW_MAX_CHARS = 1500;
 const DEFAULT_MAX_RETRIES = 5;
+const DEFAULT_MAX_TOKENS_INPUT_MULTIPLIER = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 20_000;
 
@@ -21,11 +24,17 @@ export type LlmTranslateOptions = {
   apiKey: string;
   model: string;
   temperature?: number;
+  /**
+   * max_tokens = 本轮请求输入字符数 × 该倍数，默认 3。
+   */
+  maxTokensInputMultiplier?: number;
   /** 可重试错误的最大重试次数（不含首次），默认 5 */
   maxRetries?: number;
   batchGapMs?: number;
   contextWindowSize?: number;
   contextPreviousSize?: number;
+  /** 单次窗口原文字符数上限（焦点句优先），默认 1500 */
+  contextWindowMaxChars?: number;
   /**
    * 某次窗口在重试耗尽后仍失败时调用；返回该窗口译文后继续后续窗口。
    * 未提供或回调再抛错时，整次 LLM 翻译失败。
@@ -53,16 +62,6 @@ function sleep(ms: number) {
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return String(error);
-}
-
-function collectPreviousContext(texts: string[], index: number, limit: number) {
-  const context: string[] = [];
-  for (let j = index - 1; j >= 0 && context.length < limit; j -= 1) {
-    const text = texts[j] ?? '';
-    if (!text.trim()) continue;
-    context.unshift(text);
-  }
-  return context;
 }
 
 function retryDelayMs(attempt: number) {
@@ -111,8 +110,14 @@ function buildChatCompletionsUrl(baseUrl: string) {
   return `${normalized}/chat/completions`;
 }
 
+const THINKING_BLOCK_RE = /<(think|thinking|analysis|reasoning)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+
+export function stripThinkingContent(content: string) {
+  return content.replace(THINKING_BLOCK_RE, '').trim();
+}
+
 function extractJsonArray(content: string): string[] | null {
-  const trimmed = content.trim();
+  const trimmed = stripThinkingContent(content);
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = (fenced?.[1] ?? trimmed).trim();
 
@@ -160,6 +165,7 @@ async function callChatCompletions(options: {
   apiKey: string;
   model: string;
   temperature: number;
+  maxTokens: number;
   system: string;
   user: string;
 }) {
@@ -173,6 +179,7 @@ async function callChatCompletions(options: {
     body: JSON.stringify({
       model: options.model,
       temperature: options.temperature,
+      max_tokens: options.maxTokens,
       messages: [
         { role: 'system', content: options.system },
         { role: 'user', content: options.user },
@@ -247,9 +254,11 @@ function buildPrompt(params: {
     'Translate dialogue naturally and keep speaker tone.',
     'Preserve names, onomatopoeia, and line breaks inside a cue when present.',
     'Do not add explanations.',
+    'Do not include any reasoning, chain-of-thought, or thinking process in the output — return only the final JSON array.',
     'Return ONLY a JSON array of strings for the lines that must be translated, in the same order.',
     'CRITICAL: the array length MUST equal the number of input lines exactly — never more, never fewer.',
     'If you merge multiple input lines into one translation, put the merged text in the first corresponding slot and fill the remaining slots with empty strings "" so the total length still matches.',
+    'If a line contains a long run of the same repeated character (e.g. laughter, fillers, punctuation spam), you MAY abbreviate it with "..." in the translation instead of repeating every character.',
   ].join(' ');
 
   const lines: string[] = [
@@ -273,6 +282,9 @@ function buildPrompt(params: {
   lines.push(
     'If you combine/merge lines, still output exactly that many items: use "" for unused slots after a merge.'
   );
+  lines.push(
+    'For long runs of the same repeated character, you may use "..." as an ellipsis abbreviation in the output.'
+  );
   lines.push('Lines:');
   params.focusTexts.forEach((text, i) => {
     lines.push(`${i + 1}. ${text}`);
@@ -282,10 +294,7 @@ function buildPrompt(params: {
 }
 
 async function translateWindowWithLlm(
-  texts: string[],
-  start: number,
-  windowSize: number,
-  previousLimit: number,
+  window: ContextWindow,
   options: {
     to: string;
     from?: string;
@@ -293,10 +302,10 @@ async function translateWindowWithLlm(
     apiKey: string;
     model: string;
     temperature: number;
+    maxTokensInputMultiplier: number;
   }
 ) {
-  const end = Math.min(texts.length, start + Math.max(1, Math.floor(windowSize)));
-  const focusTexts = texts.slice(start, end);
+  const { focusTexts, previous } = window;
   const results = [...focusTexts];
 
   const nonemptyFocusIndexes: number[] = [];
@@ -305,7 +314,6 @@ async function translateWindowWithLlm(
   });
   if (nonemptyFocusIndexes.length === 0) return results;
 
-  const previous = collectPreviousContext(texts, start, Math.max(0, Math.floor(previousLimit)));
   // 只把非空焦点句送给模型，空行原样保留
   const nonemptyFocus = nonemptyFocusIndexes.map(i => focusTexts[i] ?? '');
   const { system, user } = buildPrompt({
@@ -315,11 +323,15 @@ async function translateWindowWithLlm(
     to: options.to,
   });
 
+  const inputChars = system.length + user.length;
+  const maxTokens = Math.max(1, Math.ceil(inputChars * options.maxTokensInputMultiplier));
+
   const content = await callChatCompletions({
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     model: options.model,
     temperature: options.temperature,
+    maxTokens,
     system,
     user,
   });
@@ -374,7 +386,9 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     onFailedWindow,
     contextWindowSize = DEFAULT_WINDOW_SIZE,
     contextPreviousSize = DEFAULT_PREVIOUS_SIZE,
+    contextWindowMaxChars = DEFAULT_WINDOW_MAX_CHARS,
     maxRetries = DEFAULT_MAX_RETRIES,
+    maxTokensInputMultiplier = DEFAULT_MAX_TOKENS_INPUT_MULTIPLIER,
   } = options;
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const apiKey = options.apiKey.trim();
@@ -391,6 +405,18 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     typeof maxRetries === 'number' && Number.isFinite(maxRetries)
       ? Math.max(0, Math.round(maxRetries))
       : DEFAULT_MAX_RETRIES;
+  const tokensMultiplier =
+    typeof maxTokensInputMultiplier === 'number' &&
+    Number.isFinite(maxTokensInputMultiplier) &&
+    maxTokensInputMultiplier > 0
+      ? maxTokensInputMultiplier
+      : DEFAULT_MAX_TOKENS_INPUT_MULTIPLIER;
+  const maxWindowChars =
+    typeof contextWindowMaxChars === 'number' &&
+    Number.isFinite(contextWindowMaxChars) &&
+    contextWindowMaxChars > 0
+      ? Math.max(1, Math.floor(contextWindowMaxChars))
+      : DEFAULT_WINDOW_MAX_CHARS;
 
   if (!baseUrl || !apiKey || !model) {
     throw new LlmTranslateError('LLM 未完整配置（需要 baseUrl / apiKey / model）');
@@ -407,9 +433,17 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
   const output: string[] = new Array(texts.length);
   let done = 0;
 
-  for (let start = 0; start < texts.length; start += windowSize) {
-    const chunkSize = Math.min(windowSize, texts.length - start);
-    const end = start + chunkSize;
+  let start = 0;
+  while (start < texts.length) {
+    const window = buildContextWindow({
+      texts,
+      start,
+      maxFocusItems: windowSize,
+      maxPreviousItems: previousSize,
+      maxChars: maxWindowChars,
+    });
+    const end = window.end;
+    const chunkSize = end - start;
     const label = `LLM 翻译窗口 ${start + 1}-${end}/${texts.length}`;
 
     let translated: string[];
@@ -417,13 +451,14 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
       translated = await withRetry(
         label,
         () =>
-          translateWindowWithLlm(texts, start, windowSize, previousSize, {
+          translateWindowWithLlm(window, {
             to,
             from,
             baseUrl,
             apiKey,
             model,
             temperature,
+            maxTokensInputMultiplier: tokensMultiplier,
           }),
         retries
       );
@@ -448,9 +483,10 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     });
 
     done += chunkSize;
+    start = end;
     await onProgress?.(done, texts.length);
 
-    if (start + windowSize < texts.length && batchGapMs > 0) {
+    if (start < texts.length && batchGapMs > 0) {
       await sleep(batchGapMs);
     }
   }

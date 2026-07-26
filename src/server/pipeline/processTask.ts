@@ -34,6 +34,7 @@ function machineTranslateOptions(settings: AppSettings) {
     contextAware: settings.contextAwareTranslate,
     contextWindowSize: settings.contextWindowSize,
     contextPreviousSize: settings.contextPreviousSize,
+    contextWindowMaxChars: settings.contextWindowMaxChars,
     translateMaxRetries: settings.translateMaxRetries,
     shrinkWindowOnRateLimit: settings.shrinkWindowOnRateLimit,
     shrinkWindowRetries: settings.shrinkWindowRetries,
@@ -68,9 +69,11 @@ async function translateCueTexts(
       model: settings.llmModel,
       temperature: settings.llmTemperature,
       maxRetries: settings.llmMaxRetries,
+      maxTokensInputMultiplier: settings.llmMaxTokensInputMultiplier,
       batchGapMs: settings.batchGapMs,
       contextWindowSize: settings.llmContextWindowSize,
       contextPreviousSize: settings.llmContextPreviousSize,
+      contextWindowMaxChars: settings.llmContextWindowMaxChars,
       onProgress,
       onFailedWindow:
         settings.llmFallbackToMachine && settings.llmFallbackFailedWindowToMachine

@@ -35,6 +35,8 @@ export type AppSettings = {
   contextWindowSize: number;
   /** 机器翻译：每批最多携带的上文句数 */
   contextPreviousSize: number;
+  /** 机器翻译：单次窗口原文字符数上限（焦点句优先） */
+  contextWindowMaxChars: number;
   /**
    * 遇 Google 限流/风控时，是否自动缩小上下文窗口后重试。
    * 仅对「对白上下文合并」生效。
@@ -63,12 +65,19 @@ export type AppSettings = {
   llmModel: string;
   /** LLM 采样温度 */
   llmTemperature: number;
+  /**
+   * LLM：max_tokens = 本轮请求输入字符数 × 该倍数。
+   * 默认 3。
+   */
+  llmMaxTokensInputMultiplier: number;
   /** LLM：可重试错误的最大重试次数（不含首次） */
   llmMaxRetries: number;
   /** LLM：一次窗口大小（每批焦点句数） */
   llmContextWindowSize: number;
   /** LLM：每批最多携带的上文句数 */
   llmContextPreviousSize: number;
+  /** LLM：单次窗口原文字符数上限（焦点句优先） */
+  llmContextWindowMaxChars: number;
   /**
    * LLM 某次窗口失败后，是否仅对该窗口回退机器翻译，后续窗口继续尝试 LLM。
    * 仅在 llmFallbackToMachine 开启时生效；默认开启。
@@ -101,6 +110,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   contextAwareTranslate: true,
   contextWindowSize: 500,
   contextPreviousSize: 100,
+  contextWindowMaxChars: 4500,
   shrinkWindowOnRateLimit: true,
   shrinkWindowRetries: 3,
   shrinkWindowMinSize: 100,
@@ -112,9 +122,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   llmApiKey: '',
   llmModel: '',
   llmTemperature: 0.2,
+  llmMaxTokensInputMultiplier: 3,
   llmMaxRetries: 5,
   llmContextWindowSize: 30,
   llmContextPreviousSize: 5,
+  llmContextWindowMaxChars: 1500,
   llmFallbackFailedWindowToMachine: true,
   llmFallbackToMachine: true,
 };

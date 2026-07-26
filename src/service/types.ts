@@ -87,6 +87,8 @@ export type AppSettings = {
   contextWindowSize: number;
   /** 机器翻译：每批最多携带的上文句数 */
   contextPreviousSize: number;
+  /** 机器翻译：单次窗口原文字符数上限 */
+  contextWindowMaxChars: number;
   /** 限流/风控时是否自动缩窗重试 */
   shrinkWindowOnRateLimit: boolean;
   /** 缩窗重试次数 */
@@ -104,12 +106,16 @@ export type AppSettings = {
   llmApiKey: string;
   llmModel: string;
   llmTemperature: number;
+  /** LLM：max_tokens = 输入字符数 × 该倍数，默认 3 */
+  llmMaxTokensInputMultiplier: number;
   /** LLM：可重试错误的最大重试次数（不含首次） */
   llmMaxRetries: number;
   /** LLM：一次窗口大小 */
   llmContextWindowSize: number;
   /** LLM：最多上文 */
   llmContextPreviousSize: number;
+  /** LLM：单次窗口原文字符数上限 */
+  llmContextWindowMaxChars: number;
   /** LLM 失败时是否仅对失败窗口回退机器翻译（受 llmFallbackToMachine 控制） */
   llmFallbackFailedWindowToMachine: boolean;
   /** LLM 不可用时是否回退机器翻译 */

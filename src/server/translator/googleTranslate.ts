@@ -6,6 +6,7 @@ import {
   CLOUD_MAX_ITEMS_PER_BATCH,
   cloudTranslateTexts,
 } from '@/server/translator/cloudTranslate';
+import { buildContextWindow, type ContextWindow } from '@/server/translator/contextWindow';
 import { formatMachineTranslateError, MachineTranslateError } from '@/server/util/taskError';
 
 const FREE_MAX_CHARS_PER_BATCH = 4500;
@@ -13,6 +14,7 @@ const FREE_MAX_ITEMS_PER_BATCH = 40;
 const DEFAULT_BATCH_GAP_MS = 400;
 const DEFAULT_CONTEXT_WINDOW_SIZE = 500;
 const DEFAULT_CONTEXT_PREVIOUS_SIZE = 100;
+const DEFAULT_CONTEXT_WINDOW_MAX_CHARS = 4500;
 
 /** 单次翻译默认最大重试次数（不含首次） */
 const DEFAULT_MAX_RETRIES = 5;
@@ -36,6 +38,8 @@ export type TranslateTextsOptions = {
   contextWindowSize?: number;
   /** 每批最多携带上文句数，默认 100 */
   contextPreviousSize?: number;
+  /** 单次窗口原文字符数上限（焦点句优先），默认 4500 */
+  contextWindowMaxChars?: number;
   /** 限流/风控时是否缩窗重试，默认 true */
   shrinkWindowOnRateLimit?: boolean;
   /** 缩窗重试次数，默认 3 */
@@ -246,17 +250,6 @@ function buildBatches(texts: string[], maxItems: number, maxChars: number) {
   return batches;
 }
 
-/** 收集 index 之前最多 limit 条非空字幕，作为上文 */
-export function collectPreviousContext(texts: string[], index: number, limit: number) {
-  const context: string[] = [];
-  for (let j = index - 1; j >= 0 && context.length < limit; j -= 1) {
-    const text = texts[j] ?? '';
-    if (!text.trim()) continue;
-    context.unshift(text);
-  }
-  return context;
-}
-
 const LINE_MARK_RE = /⟦\s*(\d+)\s*⟧/g;
 
 /** 用不易被吃掉的标记包住每一行，便于翻译后精确抽回焦点句 */
@@ -380,15 +373,8 @@ async function translateArray(texts: string[], options: TranslateCallOptions) {
  * 非重叠窗口 + 上文消歧：每批翻译 windowSize 句焦点，前面最多带 previousLimit 句上下文。
  * 只采用焦点句译文。
  */
-async function translateWindowWithContext(
-  texts: string[],
-  start: number,
-  windowSize: number,
-  previousLimit: number,
-  options: TranslateCallOptions
-) {
-  const end = Math.min(texts.length, start + Math.max(1, Math.floor(windowSize)));
-  const focusTexts = texts.slice(start, end);
+async function translateWindowWithContext(window: ContextWindow, options: TranslateCallOptions) {
+  const { start, focusTexts, previous } = window;
   const results = [...focusTexts];
 
   const nonemptyFocusIndexes: number[] = [];
@@ -396,9 +382,6 @@ async function translateWindowWithContext(
     if (text.trim()) nonemptyFocusIndexes.push(i);
   });
   if (nonemptyFocusIndexes.length === 0) return results;
-
-  const prevLimit = Math.max(0, Math.floor(previousLimit));
-  const previous = collectPreviousContext(texts, start, prevLimit);
 
   if (previous.length === 0 && nonemptyFocusIndexes.length === 1) {
     const only = nonemptyFocusIndexes[0]!;
@@ -435,6 +418,7 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     contextAware = true,
     contextWindowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
     contextPreviousSize = DEFAULT_CONTEXT_PREVIOUS_SIZE,
+    contextWindowMaxChars = DEFAULT_CONTEXT_WINDOW_MAX_CHARS,
     shrinkWindowOnRateLimit = true,
     shrinkWindowRetries = 3,
     shrinkWindowMinSize = 100,
@@ -451,6 +435,12 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
     typeof translateMaxRetries === 'number' && Number.isFinite(translateMaxRetries)
       ? Math.max(0, Math.round(translateMaxRetries))
       : DEFAULT_MAX_RETRIES;
+  const maxWindowChars =
+    typeof contextWindowMaxChars === 'number' &&
+    Number.isFinite(contextWindowMaxChars) &&
+    contextWindowMaxChars > 0
+      ? Math.max(1, Math.floor(contextWindowMaxChars))
+      : DEFAULT_CONTEXT_WINDOW_MAX_CHARS;
 
   if (texts.length === 0) {
     return [];
@@ -482,11 +472,18 @@ export async function translateTexts(texts: string[], options: TranslateTextsOpt
 
     let start = 0;
     while (start < texts.length) {
-      const chunkSize = Math.min(windowSize, texts.length - start);
+      const window = buildContextWindow({
+        texts,
+        start,
+        maxFocusItems: windowSize,
+        maxPreviousItems: previousSize,
+        maxChars: maxWindowChars,
+      });
+      const chunkSize = window.end - start;
       try {
         const translated = await withTranslateRetry(
           `翻译窗口 ${start + 1}-${start + chunkSize}/${texts.length}`,
-          () => translateWindowWithContext(texts, start, windowSize, previousSize, callOptions),
+          () => translateWindowWithContext(window, callOptions),
           maxRetries
         );
         translated.forEach((text, i) => {

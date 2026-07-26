@@ -49,6 +49,7 @@ type FormState = {
   contextAwareTranslate: boolean;
   contextWindowSize: string;
   contextPreviousSize: string;
+  contextWindowMaxChars: string;
   shrinkWindowOnRateLimit: boolean;
   shrinkWindowRetries: string;
   shrinkWindowMinSize: string;
@@ -62,9 +63,11 @@ type FormState = {
   llmApiKey: string;
   llmModel: string;
   llmTemperature: string;
+  llmMaxTokensInputMultiplier: string;
   llmMaxRetries: string;
   llmContextWindowSize: string;
   llmContextPreviousSize: string;
+  llmContextWindowMaxChars: string;
   llmFallbackFailedWindowToMachine: boolean;
   llmFallbackToMachine: boolean;
 };
@@ -93,6 +96,7 @@ function toFormState(settings: AppSettings): FormState {
     contextAwareTranslate: settings.contextAwareTranslate,
     contextWindowSize: String(settings.contextWindowSize),
     contextPreviousSize: String(settings.contextPreviousSize),
+    contextWindowMaxChars: String(settings.contextWindowMaxChars),
     shrinkWindowOnRateLimit: settings.shrinkWindowOnRateLimit,
     shrinkWindowRetries: String(settings.shrinkWindowRetries),
     shrinkWindowMinSize: String(settings.shrinkWindowMinSize),
@@ -106,9 +110,11 @@ function toFormState(settings: AppSettings): FormState {
     llmApiKey: settings.llmApiKey,
     llmModel: settings.llmModel,
     llmTemperature: String(settings.llmTemperature),
+    llmMaxTokensInputMultiplier: String(settings.llmMaxTokensInputMultiplier),
     llmMaxRetries: String(settings.llmMaxRetries),
     llmContextWindowSize: String(settings.llmContextWindowSize),
     llmContextPreviousSize: String(settings.llmContextPreviousSize),
+    llmContextWindowMaxChars: String(settings.llmContextWindowMaxChars),
     llmFallbackFailedWindowToMachine: settings.llmFallbackFailedWindowToMachine,
     llmFallbackToMachine: settings.llmFallbackToMachine,
   };
@@ -136,6 +142,7 @@ function toPayload(form: FormState): Partial<AppSettings> {
     contextAwareTranslate: form.contextAwareTranslate,
     contextWindowSize: Number(form.contextWindowSize),
     contextPreviousSize: Number(form.contextPreviousSize),
+    contextWindowMaxChars: Number(form.contextWindowMaxChars),
     shrinkWindowOnRateLimit: form.shrinkWindowOnRateLimit,
     shrinkWindowRetries: Number(form.shrinkWindowRetries),
     shrinkWindowMinSize: Number(form.shrinkWindowMinSize),
@@ -149,9 +156,11 @@ function toPayload(form: FormState): Partial<AppSettings> {
     llmApiKey: form.llmApiKey,
     llmModel: form.llmModel.trim(),
     llmTemperature: Number(form.llmTemperature),
+    llmMaxTokensInputMultiplier: Number(form.llmMaxTokensInputMultiplier),
     llmMaxRetries: Number(form.llmMaxRetries),
     llmContextWindowSize: Number(form.llmContextWindowSize),
     llmContextPreviousSize: Number(form.llmContextPreviousSize),
+    llmContextWindowMaxChars: Number(form.llmContextWindowMaxChars),
     llmFallbackFailedWindowToMachine: form.llmFallbackFailedWindowToMachine,
     llmFallbackToMachine: form.llmFallbackToMachine,
   };
@@ -486,6 +495,22 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
+                <Field.Label>单次最大窗口字符数量</Field.Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.contextWindowMaxChars}
+                  disabled={!form.contextAwareTranslate}
+                  onChange={event =>
+                    setForm({ ...form, contextWindowMaxChars: event.target.value })
+                  }
+                />
+                <Field.HelperText>
+                  默认 4500。优先保留本次待翻译正文，达到上限时自动缩短窗口并减少上文。
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
                 <Field.Label>网络重试次数</Field.Label>
                 <Input
                   type="number"
@@ -657,6 +682,24 @@ export default function SettingsPage() {
               </Field.Root>
 
               <Field.Root>
+                <Field.Label>输出上限倍数</Field.Label>
+                <Input
+                  type="number"
+                  min={0.1}
+                  max={50}
+                  step={0.1}
+                  value={form.llmMaxTokensInputMultiplier}
+                  disabled={!form.llmEnabled}
+                  onChange={event =>
+                    setForm({ ...form, llmMaxTokensInputMultiplier: event.target.value })
+                  }
+                />
+                <Field.HelperText>
+                  请求时设置 max_tokens = 本轮输入字符数 × 该倍数，默认 3。
+                </Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
                 <Field.Label>网络重试次数</Field.Label>
                 <Input
                   type="number"
@@ -695,6 +738,22 @@ export default function SettingsPage() {
                   }
                 />
                 <Field.HelperText>LLM 每批最多携带上文句数，默认 5。</Field.HelperText>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>单次最大窗口字符数量</Field.Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.llmContextWindowMaxChars}
+                  disabled={!form.llmEnabled}
+                  onChange={event =>
+                    setForm({ ...form, llmContextWindowMaxChars: event.target.value })
+                  }
+                />
+                <Field.HelperText>
+                  默认 1500。优先保留本次待翻译正文，达到上限时自动缩短窗口并减少上文。
+                </Field.HelperText>
               </Field.Root>
 
               <Field.Root>
