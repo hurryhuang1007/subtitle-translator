@@ -116,6 +116,8 @@ export type AppSettings = {
   llmContextPreviousSize: number;
   /** LLM：单次窗口原文字符数上限 */
   llmContextWindowMaxChars: number;
+  /** LLM 影片类型；空表示不选择；预设值为 anime/movie 等；其他为自定义描述 */
+  llmMediaType: string;
   /** LLM 失败时是否仅对失败窗口回退机器翻译（受 llmFallbackToMachine 控制） */
   llmFallbackFailedWindowToMachine: boolean;
   /** LLM 不可用时是否回退机器翻译 */

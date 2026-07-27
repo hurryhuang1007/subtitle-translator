@@ -18,6 +18,7 @@ import { useRequest } from 'ahooks';
 import { type ReactNode, useState } from 'react';
 
 import { toaster } from '@/com/ui/toaster';
+import { LLM_MEDIA_TYPE_OPTIONS, resolveLlmMediaTypeSelect } from '@/config/llmMediaType';
 import { fetchSettings, updateSettings } from '@/service/settings';
 import type { AppSettings } from '@/service/types';
 
@@ -68,6 +69,8 @@ type FormState = {
   llmContextWindowSize: string;
   llmContextPreviousSize: string;
   llmContextWindowMaxChars: string;
+  llmMediaType: string;
+  llmMediaTypeCustom: string;
   llmFallbackFailedWindowToMachine: boolean;
   llmFallbackToMachine: boolean;
 };
@@ -82,6 +85,7 @@ function resolveSourceLanguageSelect(value: string) {
 
 function toFormState(settings: AppSettings): FormState {
   const source = resolveSourceLanguageSelect(settings.sourceLanguage);
+  const media = resolveLlmMediaTypeSelect(settings.llmMediaType);
   return {
     watchDirsText: settings.watchDirs.join('\n'),
     filenamePattern: settings.filenamePattern,
@@ -115,6 +119,8 @@ function toFormState(settings: AppSettings): FormState {
     llmContextWindowSize: String(settings.llmContextWindowSize),
     llmContextPreviousSize: String(settings.llmContextPreviousSize),
     llmContextWindowMaxChars: String(settings.llmContextWindowMaxChars),
+    llmMediaType: media.select,
+    llmMediaTypeCustom: media.custom,
     llmFallbackFailedWindowToMachine: settings.llmFallbackFailedWindowToMachine,
     llmFallbackToMachine: settings.llmFallbackToMachine,
   };
@@ -125,6 +131,8 @@ function toPayload(form: FormState): Partial<AppSettings> {
     form.sourceLanguage === 'custom'
       ? form.sourceLanguageCustom.trim() || 'auto'
       : form.sourceLanguage;
+  const llmMediaType =
+    form.llmMediaType === 'custom' ? form.llmMediaTypeCustom.trim() : form.llmMediaType;
 
   return {
     watchDirs: form.watchDirsText
@@ -161,6 +169,7 @@ function toPayload(form: FormState): Partial<AppSettings> {
     llmContextWindowSize: Number(form.llmContextWindowSize),
     llmContextPreviousSize: Number(form.llmContextPreviousSize),
     llmContextWindowMaxChars: Number(form.llmContextWindowMaxChars),
+    llmMediaType,
     llmFallbackFailedWindowToMachine: form.llmFallbackFailedWindowToMachine,
     llmFallbackToMachine: form.llmFallbackToMachine,
   };
@@ -628,6 +637,35 @@ export default function SettingsPage() {
                     </Switch.Control>
                   </Switch.Root>
                 </Flex>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>影片类型</Field.Label>
+                <NativeSelect.Root disabled={!form.llmEnabled}>
+                  <NativeSelect.Field
+                    value={form.llmMediaType}
+                    onChange={event => setForm({ ...form, llmMediaType: event.target.value })}
+                  >
+                    {LLM_MEDIA_TYPE_OPTIONS.map(option => (
+                      <option key={option.value || 'none'} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </NativeSelect.Field>
+                  <NativeSelect.Indicator />
+                </NativeSelect.Root>
+                {form.llmMediaType === 'custom' ? (
+                  <Input
+                    mt={2}
+                    value={form.llmMediaTypeCustom}
+                    disabled={!form.llmEnabled}
+                    onChange={event => setForm({ ...form, llmMediaTypeCustom: event.target.value })}
+                    placeholder="例如：武侠网剧 / 儿童教育动画"
+                  />
+                ) : null}
+                <Field.HelperText>
+                  可选。选择后会向大模型提示词注入对应场景说明；「不选择」则不注入；「自定义」可填写任意类型描述。
+                </Field.HelperText>
               </Field.Root>
 
               <Field.Root>

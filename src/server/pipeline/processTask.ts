@@ -74,6 +74,7 @@ async function translateCueTexts(
       contextWindowSize: settings.llmContextWindowSize,
       contextPreviousSize: settings.llmContextPreviousSize,
       contextWindowMaxChars: settings.llmContextWindowMaxChars,
+      mediaType: settings.llmMediaType,
       onProgress,
       onFailedWindow:
         settings.llmFallbackToMachine && settings.llmFallbackFailedWindowToMachine

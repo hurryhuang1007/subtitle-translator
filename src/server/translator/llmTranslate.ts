@@ -1,3 +1,4 @@
+import { resolveLlmMediaTypePrompt } from '@/config/llmMediaType';
 import { logger } from '@/server/logger/logger';
 import { buildContextWindow, type ContextWindow } from '@/server/translator/contextWindow';
 import { isProd } from '@/util/env';
@@ -35,6 +36,8 @@ export type LlmTranslateOptions = {
   contextPreviousSize?: number;
   /** 单次窗口原文字符数上限（焦点句优先），默认 1500 */
   contextWindowMaxChars?: number;
+  /** 影片类型；空或不传则不注入场景提示词 */
+  mediaType?: string;
   /**
    * 某次窗口在重试耗尽后仍失败时调用；返回该窗口译文后继续后续窗口。
    * 未提供或回调再抛错时，整次 LLM 翻译失败。
@@ -247,8 +250,10 @@ function buildPrompt(params: {
   focusTexts: string[];
   from?: string;
   to: string;
+  mediaType?: string;
 }) {
   const expectedCount = params.focusTexts.length;
+  const mediaPrompt = resolveLlmMediaTypePrompt(params.mediaType);
   const system = [
     'You are a professional subtitle translator.',
     'Translate dialogue naturally and keep speaker tone.',
@@ -259,6 +264,7 @@ function buildPrompt(params: {
     'CRITICAL: the array length MUST equal the number of input lines exactly — never more, never fewer.',
     'If you merge multiple input lines into one translation, put the merged text in the first corresponding slot and fill the remaining slots with empty strings "" so the total length still matches.',
     'If a line contains a long run of the same repeated character (e.g. laughter, fillers, punctuation spam), you MAY abbreviate it with "..." in the translation instead of repeating every character.',
+    ...(mediaPrompt ? [mediaPrompt] : []),
   ].join(' ');
 
   const lines: string[] = [
@@ -303,6 +309,7 @@ async function translateWindowWithLlm(
     model: string;
     temperature: number;
     maxTokensInputMultiplier: number;
+    mediaType?: string;
   }
 ) {
   const { focusTexts, previous } = window;
@@ -321,6 +328,7 @@ async function translateWindowWithLlm(
     focusTexts: nonemptyFocus,
     from: options.from,
     to: options.to,
+    mediaType: options.mediaType,
   });
 
   const inputChars = system.length + user.length;
@@ -379,6 +387,7 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
     from,
     onProgress,
     onFailedWindow,
+    mediaType,
     contextWindowSize = DEFAULT_WINDOW_SIZE,
     contextPreviousSize = DEFAULT_PREVIOUS_SIZE,
     contextWindowMaxChars = DEFAULT_WINDOW_MAX_CHARS,
@@ -454,6 +463,7 @@ export async function translateTextsWithLlm(texts: string[], options: LlmTransla
             model,
             temperature,
             maxTokensInputMultiplier: tokensMultiplier,
+            mediaType,
           }),
         retries
       );

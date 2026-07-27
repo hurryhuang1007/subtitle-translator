@@ -79,6 +79,12 @@ export type AppSettings = {
   /** LLM：单次窗口原文字符数上限（焦点句优先） */
   llmContextWindowMaxChars: number;
   /**
+   * LLM 影片类型（可选项）。
+   * 空字符串表示不选择；预设值为 anime/movie/tv/documentary/variety；
+   * 其他非空字符串视为自定义类型描述，会注入对应场景提示词。
+   */
+  llmMediaType: string;
+  /**
    * LLM 某次窗口失败后，是否仅对该窗口回退机器翻译，后续窗口继续尝试 LLM。
    * 仅在 llmFallbackToMachine 开启时生效；默认开启。
    */
@@ -127,6 +133,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   llmContextWindowSize: 30,
   llmContextPreviousSize: 5,
   llmContextWindowMaxChars: 1500,
+  llmMediaType: '',
   llmFallbackFailedWindowToMachine: true,
   llmFallbackToMachine: true,
 };

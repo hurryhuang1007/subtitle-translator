@@ -1,3 +1,4 @@
+import { normalizeLlmMediaType } from '@/config/llmMediaType';
 import { getSettings, updateSettings, type AppSettings } from '@/server/config/settings';
 import { apiFail, apiOk } from '@/server/util/apiResponse';
 
@@ -216,6 +217,10 @@ function normalizeSettingsInput(body: Partial<AppSettings>) {
       body.llmContextWindowMaxChars,
       'llmContextWindowMaxChars'
     );
+  }
+
+  if (body.llmMediaType !== undefined) {
+    next.llmMediaType = normalizeLlmMediaType(body.llmMediaType);
   }
 
   if (body.llmFallbackFailedWindowToMachine !== undefined) {
