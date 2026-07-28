@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="Subtitle Translator" width="128" />
+</p>
+
 # Subtitle Translator
 
 类似 Sonarr / Radarr 的**字幕自动翻译后台服务**：长期监听指定目录，发现新字幕后自动翻译并写出目标文件，同时提供现代化 Web 管理界面查看状态、任务、配置与日志。
@@ -10,14 +14,22 @@
 
 看剧、整理片库时，字幕经常只有英文字幕。本服务把「丢进目录 → 自动翻译 → 生成带语言后缀的文件」变成无人值守流程，适合挂在 NAS / 服务器上长期跑。
 
+### 典型场景
+
+1. **外挂字幕翻译**：片库里只有英 / 日等外文字幕，需要自动生成中文字幕。
+2. **Whisper 听写后再翻译**：用 Whisper（或 WhisperSubs 等工具）从视频生成字幕后，源文件往往是识别出的外文（如 `.ja.WhisperSubs.srt`）。把输出目录挂到本服务的监听路径，即可无人值守翻成目标语言，省去逐条粘贴网页翻译。
+
 典型结果：
 
 ```text
-Frieren.ass      →  Frieren.zh.ass
-movie.eng.srt    →  movie.eng.zh.srt
+Frieren.ass                 →  Frieren.zh.ass
+movie.eng.srt               →  movie.eng.zh.srt
+Episode.01.ja.WhisperSubs.srt  →  Episode.01.ja.WhisperSubs.zh.srt
 ```
 
 默认不会覆盖原文件；若目标已存在，可配置为跳过。
+
+> Whisper 听写结果常有断句碎、口误噪声、专有名词识别错误。机器翻译会原样承接这些噪声；重要成片建议开启 LLM 翻译，或事后人工校对角色名等专有名词。
 
 ## 功能概览
 
