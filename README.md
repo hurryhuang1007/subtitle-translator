@@ -8,7 +8,7 @@
 
 ![Dashboard](readme/dashboard.png)
 
-> 截图中 Memory 偏高，是因为当时为本地开发环境（Next.js + Webpack 热更新会额外占内存），并非生产 Docker 部署的常态；用 `docker compose` / GHCR 镜像运行后会低很多。
+> 截图中 Memory 偏高，是因为当时为本地开发环境（Next.js + Webpack 热更新会额外占内存），并非生产 Docker 部署的常态；用 `docker compose` / GHCR 镜像正式部署后，空闲内存通常只需约 **50MB** 左右。
 
 ## 它解决什么问题
 
